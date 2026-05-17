@@ -12,6 +12,29 @@ import { GRAPHICS_PRESETS } from './types';
 import type { AudioSourceType, QualityLevel, GraphicsSettings } from './types';
 import './App.css';
 
+function readQuality(): QualityLevel {
+  const raw = localStorage.getItem('mv_quality');
+  if (raw === 'low' || raw === 'medium' || raw === 'high' || raw === 'ultra') return raw;
+  return 'medium';
+}
+
+function readGraphicsSettings(): GraphicsSettings {
+  try {
+    const raw = localStorage.getItem('mv_graphics_settings');
+    if (raw) return { ...GRAPHICS_PRESETS['medium'], ...JSON.parse(raw) } as GraphicsSettings;
+  } catch { /* ignore */ }
+  return GRAPHICS_PRESETS['medium'];
+}
+
+function readBlendTime(): number {
+  const raw = localStorage.getItem('mv_blend_time');
+  if (raw !== null) {
+    const n = parseFloat(raw);
+    if (isFinite(n)) return n;
+  }
+  return 2.7;
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<ButterchurnRenderer | null>(null);
@@ -19,10 +42,10 @@ export default function App() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSource, setActiveSource] = useState<AudioSourceType | null>(null);
-  const [quality, setQuality] = useState<QualityLevel>('medium');
-  const [graphicsSettings, setGraphicsSettings] = useState<GraphicsSettings>(GRAPHICS_PRESETS['medium']);
+  const [quality, setQuality] = useState<QualityLevel>(readQuality);
+  const [graphicsSettings, setGraphicsSettings] = useState<GraphicsSettings>(readGraphicsSettings);
   const [activePresetId, setActivePresetId] = useState('');
-  const [blendTime, setBlendTime] = useState(2.7);
+  const [blendTime, setBlendTime] = useState(readBlendTime);
   const [fps, setFps] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -266,6 +289,11 @@ export default function App() {
       if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
     };
   }, []);
+
+  // Persist graphics settings
+  useEffect(() => { localStorage.setItem('mv_quality', quality); }, [quality]);
+  useEffect(() => { localStorage.setItem('mv_graphics_settings', JSON.stringify(graphicsSettings)); }, [graphicsSettings]);
+  useEffect(() => { localStorage.setItem('mv_blend_time', String(blendTime)); }, [blendTime]);
 
   const hudHidden = !hudVisible && !menuOpen;
   const activePreset = presets.find(p => p.id === activePresetId) ?? null;
