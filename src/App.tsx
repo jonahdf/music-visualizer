@@ -28,6 +28,7 @@ export default function App() {
   const [hint, setHint] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
   const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -193,6 +194,13 @@ export default function App() {
         case 'KeyH':
           toggleHold();
           break;
+        case 'KeyM':
+          setIsMuted(prev => {
+            const next = !prev;
+            audioEngine.setMuted(next);
+            return next;
+          });
+          break;
       }
     };
     window.addEventListener('keydown', onKey);
@@ -323,6 +331,19 @@ export default function App() {
             title="Hold auto-advance (H)"
           >
             {isHeld ? '⏸' : '▶'}
+          </button>
+        )}
+        {initialized && activeSource && (
+          <button
+            className={`hud-btn${isMuted ? ' active' : ''}`}
+            onClick={() => setIsMuted(prev => {
+              const next = !prev;
+              audioEngine.setMuted(next);
+              return next;
+            })}
+            title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
+          >
+            {isMuted ? '🔇' : '🔊'}
           </button>
         )}
         {initialized && activePreset && (

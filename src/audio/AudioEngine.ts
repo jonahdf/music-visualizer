@@ -12,6 +12,7 @@ export interface AudioData {
 export class AudioEngine {
   private context: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
+  private gainNode: GainNode | null = null;
   private source: AudioNode | null = null;
   private stream: MediaStream | null = null;
   private frequencyData: Uint8Array = new Uint8Array(0);
@@ -31,8 +32,8 @@ export class AudioEngine {
     this.analyser = this.context.createAnalyser();
     this.analyser.fftSize = fftSize;
     this.analyser.smoothingTimeConstant = 0.8;
-    // Intentionally NOT connected to destination here — each source decides whether to route to output.
-    // Tab/mic sources skip output (source tab already plays audio); file sources connect directly.
+    this.gainNode = this.context.createGain();
+    this.gainNode.connect(this.context.destination);
     this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
     this.timeData = new Uint8Array(this.analyser.fftSize);
   }
@@ -50,9 +51,7 @@ export class AudioEngine {
     this.stream = stream;
     const mediaSource = this.context!.createMediaStreamSource(stream);
     mediaSource.connect(this.analyser!);
-    // Route captured audio to this tab's output so the source tab can be muted.
-    // This keeps the visualization tightly synced to what you hear.
-    mediaSource.connect(this.context!.destination);
+    mediaSource.connect(this.gainNode!);
     this.source = mediaSource;
   }
 
@@ -68,7 +67,7 @@ export class AudioEngine {
     bufferSource.buffer = audioBuffer;
     bufferSource.loop = true;
     bufferSource.connect(this.analyser!);
-    bufferSource.connect(ctx.destination);
+    bufferSource.connect(this.gainNode!);
     bufferSource.start();
     this.source = bufferSource;
   }
@@ -110,6 +109,10 @@ export class AudioEngine {
     };
   }
 
+  setMuted(muted: boolean) {
+    if (this.gainNode) this.gainNode.gain.value = muted ? 0 : 1;
+  }
+
   getContext() { return this.context; }
   getAnalyser() { return this.analyser; }
 
@@ -118,6 +121,7 @@ export class AudioEngine {
     this.context?.close();
     this.context = null;
     this.analyser = null;
+    this.gainNode = null;
   }
 }
 
