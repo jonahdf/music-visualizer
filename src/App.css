@@ -538,6 +538,34 @@
   letter-spacing: 0.05em;
 }
 
+/* ── Graphics sub-tabs ────────────────────────────────── */
+.graphics-subtabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.graphics-subtab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 10px 0;
+  cursor: pointer;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+.graphics-subtab:hover { color: rgba(255, 255, 255, 0.85); }
+.graphics-subtab.active {
+  color: #fff;
+  border-bottom-color: #7c3aed;
+}
+
 /* ── Presets section ──────────────────────────────────── */
 .presets-section {
   margin-bottom: 24px;
