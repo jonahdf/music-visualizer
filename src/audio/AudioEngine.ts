@@ -13,6 +13,7 @@ export class AudioEngine {
   private context: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private gainNode: GainNode | null = null;
+  private vizBoostNode: GainNode | null = null;
   private source: AudioNode | null = null;
   private stream: MediaStream | null = null;
   private frequencyData: Uint8Array = new Uint8Array(0);
@@ -32,6 +33,10 @@ export class AudioEngine {
     this.analyser = this.context.createAnalyser();
     this.analyser.fftSize = fftSize;
     this.analyser.smoothingTimeConstant = 0.8;
+    // Dedicated gain node in the butterchurn signal path — gain adjusted per source type
+    this.vizBoostNode = this.context.createGain();
+    this.vizBoostNode.gain.value = 1.0;
+    this.analyser.connect(this.vizBoostNode);
     this.gainNode = this.context.createGain();
     this.gainNode.connect(this.context.destination);
     this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
@@ -45,13 +50,18 @@ export class AudioEngine {
     this.timeData = new Uint8Array(this.analyser.fftSize);
   }
 
-  async connectStream(stream: MediaStream) {
+  async connectStream(stream: MediaStream, type: 'mic' | 'tab' = 'tab') {
     if (!this.context) await this.initContext(1024);
     this.disconnectSource();
     this.stream = stream;
     const mediaSource = this.context!.createMediaStreamSource(stream);
     mediaSource.connect(this.analyser!);
     mediaSource.connect(this.gainNode!);
+    // Mic input benefits from a gain boost since it's raw (no AGC) and butterchurn
+    // normalizes to a long-term average — boosting helps transients register clearly.
+    if (this.vizBoostNode) {
+      this.vizBoostNode.gain.value = type === 'mic' ? 2.0 : 1.0;
+    }
     this.source = mediaSource;
   }
 
@@ -69,6 +79,7 @@ export class AudioEngine {
     bufferSource.connect(this.analyser!);
     bufferSource.connect(this.gainNode!);
     bufferSource.start();
+    if (this.vizBoostNode) this.vizBoostNode.gain.value = 1.0;
     this.source = bufferSource;
   }
 
@@ -115,6 +126,7 @@ export class AudioEngine {
 
   getContext() { return this.context; }
   getAnalyser() { return this.analyser; }
+  getVizNode() { return this.vizBoostNode; }
 
   destroy() {
     this.disconnectSource();
@@ -122,6 +134,7 @@ export class AudioEngine {
     this.context = null;
     this.analyser = null;
     this.gainNode = null;
+    this.vizBoostNode = null;
   }
 }
 

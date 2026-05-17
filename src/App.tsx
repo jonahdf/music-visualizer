@@ -90,8 +90,8 @@ export default function App() {
     renderer.init(canvas, ctx, graphicsSettings);
     rendererRef.current = renderer;
 
-    const analyser = audioEngine.getAnalyser();
-    if (analyser) renderer.connectAudio(analyser);
+    const vizNode = audioEngine.getVizNode();
+    if (vizNode) renderer.connectAudio(vizNode);
 
     renderer.startRenderLoop();
     setInitialized(true);

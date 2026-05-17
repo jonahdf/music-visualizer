@@ -38,9 +38,9 @@ export class ButterchurnRenderer {
     this.currentPresetName = name;
   }
 
-  connectAudio(analyserNode: AnalyserNode) {
+  connectAudio(node: AudioNode) {
     if (!this.visualizer) return;
-    this.visualizer.connectAudio(analyserNode);
+    this.visualizer.connectAudio(node);
   }
 
   resize(width: number, height: number, quality: QualitySettings) {
