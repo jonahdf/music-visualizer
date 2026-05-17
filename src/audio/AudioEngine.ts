@@ -52,11 +52,12 @@ export class AudioEngine {
 
   async connectStream(stream: MediaStream, type: 'mic' | 'tab' = 'tab') {
     if (!this.context) await this.initContext(1024);
+    await this.context!.resume();
     this.disconnectSource();
     this.stream = stream;
     const mediaSource = this.context!.createMediaStreamSource(stream);
     mediaSource.connect(this.analyser!);
-    mediaSource.connect(this.gainNode!);
+    if (type !== 'mic') mediaSource.connect(this.gainNode!);
     // Mic input benefits from a gain boost since it's raw (no AGC) and butterchurn
     // normalizes to a long-term average — boosting helps transients register clearly.
     if (this.vizBoostNode) {
