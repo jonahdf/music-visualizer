@@ -86,8 +86,8 @@ export class AudioEngine {
 
   getAudioData(): AudioData {
     if (this.analyser) {
-      this.analyser.getByteFrequencyData(this.frequencyData);
-      this.analyser.getByteTimeDomainData(this.timeData);
+      this.analyser.getByteFrequencyData(this.frequencyData as Uint8Array<ArrayBuffer>);
+      this.analyser.getByteTimeDomainData(this.timeData as Uint8Array<ArrayBuffer>);
     }
 
     const bins = this.frequencyData.length;
