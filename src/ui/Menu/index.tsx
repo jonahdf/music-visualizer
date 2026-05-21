@@ -147,6 +147,10 @@ export default function Menu({
               activeSource={activeSource}
               onSelectSource={onSelectSource}
               onSelectFile={onSelectFile}
+              tracks={[]}
+              currentTrackId={null}
+              loadingTrackId={null}
+              onSelectTrack={() => {}}
             />
           )}
           {tab === 'graphics' && (

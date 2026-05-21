@@ -1,5 +1,5 @@
 import type { PresetEntry } from '../../presets/usePresets';
-import type { AudioSourceType, QualityLevel, GraphicsSettings } from '../../types';
+import type { AudioSourceType, QualityLevel, GraphicsSettings, SampleTrack } from '../../types';
 import PresetBrowser from '../PresetBrowser';
 import AudioSourcePicker from '../AudioSourcePicker';
 import GraphicsPanel from '../GraphicsPanel';
@@ -47,6 +47,10 @@ interface Props {
   onRemovePreset: (id: string) => void;
   onSelectSource: (type: AudioSourceType) => void;
   onSelectFile: (file: File) => void;
+  libraryTracks: SampleTrack[];
+  currentTrackId: string | null;
+  loadingTrackId: string | null;
+  onSelectTrack: (track: SampleTrack) => void;
   onQualityChange: (q: QualityLevel) => void;
   onSettingsChange: (s: Partial<GraphicsSettings>) => void;
   onBlendTimeChange: (t: number) => void;
@@ -87,6 +91,10 @@ export default function Drawer({
   onRemovePreset,
   onSelectSource,
   onSelectFile,
+  libraryTracks,
+  currentTrackId,
+  loadingTrackId,
+  onSelectTrack,
   onQualityChange,
   onSettingsChange,
   onBlendTimeChange,
@@ -153,6 +161,10 @@ export default function Drawer({
             activeSource={activeSource}
             onSelectSource={onSelectSource}
             onSelectFile={onSelectFile}
+            tracks={libraryTracks}
+            currentTrackId={currentTrackId}
+            loadingTrackId={loadingTrackId}
+            onSelectTrack={onSelectTrack}
           />
         )}
 
