@@ -189,33 +189,41 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
 
   const handleImport = () => {
     setImportError('');
+    let jsonStr = importText.trim();
+    const match = jsonStr.match(/```(?:json)?\s*([\s\S]+?)```/);
+    if (match) jsonStr = match[1].trim();
+
+    let parsed: Record<string, unknown>;
     try {
-      let jsonStr = importText.trim();
-      const match = jsonStr.match(/```(?:json)?\s*([\s\S]+?)```/);
-      if (match) jsonStr = match[1].trim();
-      const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
-      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-        setImportError('Expected a JSON object { ... }');
-        return;
-      }
-      if (importReplace) {
-        applyPreset({ ...DEFAULT_PRESET, ...parsed });
-      } else {
-        const updates: Record<string, unknown> = {};
-        for (const key of Object.keys(parsed)) {
-          if (PARAM_BY_KEY[key]) updates[key] = parsed[key];
-        }
-        if (Object.keys(updates).length === 0) {
-          setImportError('No recognized preset parameters found. Check "Replace entirely" to import a full preset JSON.');
-          return;
-        }
-        applyPreset({ ...preset, ...updates });
-      }
-      setShowImport(false);
-      setImportText('');
+      parsed = JSON.parse(jsonStr) as Record<string, unknown>;
     } catch (e) {
       setImportError(`Parse error: ${(e as Error).message}`);
+      return;
     }
+
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      setImportError('Expected a JSON object { ... }');
+      return;
+    }
+
+    let updatedPreset: Record<string, unknown>;
+    if (importReplace) {
+      updatedPreset = { ...DEFAULT_PRESET, ...parsed };
+    } else {
+      const updates: Record<string, unknown> = {};
+      for (const key of Object.keys(parsed)) {
+        if (PARAM_BY_KEY[key]) updates[key] = parsed[key];
+      }
+      if (Object.keys(updates).length === 0) {
+        setImportError('No recognized preset parameters found. Check "Replace entirely" to import a full preset JSON.');
+        return;
+      }
+      updatedPreset = { ...preset, ...updates };
+    }
+
+    setShowImport(false);
+    setImportText('');
+    applyPreset(updatedPreset);
   };
 
   const handleSave = async () => {
