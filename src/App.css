@@ -173,6 +173,33 @@
 
 .bar-fps { font-variant-numeric: tabular-nums; }
 
+/* Auto-advance indicator — clearly distinct from nav buttons */
+.bar-auto {
+  background: rgba(124, 58, 237, 0.12);
+  border: 1px solid rgba(124, 58, 237, 0.28);
+  border-radius: 6px;
+  color: #a78bfa;
+  font-size: 0.72rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: background 0.15s, border-color 0.15s;
+}
+.bar-auto:hover {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: rgba(124, 58, 237, 0.5);
+}
+.bar-auto-held {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.35);
+  color: #fbbf24;
+}
+.bar-auto-held:hover {
+  background: rgba(251, 191, 36, 0.22);
+  border-color: rgba(251, 191, 36, 0.6);
+}
+
 .bar-start {
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.4);

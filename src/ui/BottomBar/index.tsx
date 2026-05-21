@@ -1,6 +1,11 @@
 import type { AudioSourceType, QualityLevel } from '../../types';
 import type { PresetEntry } from '../../presets/usePresets';
 
+function fmtInterval(ms: number): string {
+  if (ms < 60000) return `${ms / 1000}s`;
+  return `${ms / 60000}m`;
+}
+
 interface Props {
   visible: boolean;
   initialized: boolean;
@@ -87,11 +92,11 @@ export default function BottomBar({
             <button className="bar-btn bar-random" onClick={onRandom} title="Random preset (R / Space)">⟳</button>
             {interval > 0 && (
               <button
-                className={`bar-btn${isHeld ? ' bar-active' : ''}`}
+                className={`bar-auto${isHeld ? ' bar-auto-held' : ''}`}
                 onClick={onToggleHold}
-                title={isHeld ? 'Resume auto-advance (H)' : 'Hold auto-advance (H)'}
+                title={isHeld ? 'Resume auto-advance (H)' : 'Pause auto-advance (H) — A to cycle interval'}
               >
-                {isHeld ? '⏸' : '⏵'}
+                {isHeld ? `⏸ HELD` : `↻ ${fmtInterval(interval)}`}
               </button>
             )}
           </>
