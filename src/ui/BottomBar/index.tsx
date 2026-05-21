@@ -89,7 +89,7 @@ export default function BottomBar({
               )}
             </div>
             <button className="bar-btn" onClick={onNext} title="Next preset (→)">▶</button>
-            <button className="bar-btn bar-random" onClick={onRandom} title="Random preset (R / Space)">⟳</button>
+            <button className="bar-btn bar-random" onClick={onRandom} title="Random preset (R / Space)">🎲</button>
             {interval > 0 && (
               <button
                 className={`bar-auto${isHeld ? ' bar-auto-held' : ''}`}
