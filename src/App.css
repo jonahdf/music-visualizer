@@ -205,6 +205,243 @@
   color: rgba(255, 255, 255, 0.4);
 }
 
+/* ── Now Playing HUD ─────────────────────────────────── */
+.now-playing-hud {
+  position: fixed;
+  bottom: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  transition: opacity 0.5s ease;
+  white-space: nowrap;
+  max-width: 90vw;
+}
+
+.hud-hidden { opacity: 0; pointer-events: none; }
+
+.hud-track-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hud-note {
+  color: #a78bfa;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.hud-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hud-title {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.hud-artist {
+  font-size: 0.67rem;
+  color: rgba(255, 255, 255, 0.45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.hud-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.75rem;
+  padding: 4px 7px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1.2;
+}
+.hud-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.hud-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.hud-playpause {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: rgba(124, 58, 237, 0.4);
+  color: #c4b5fd;
+  min-width: 28px;
+}
+.hud-playpause:hover {
+  background: rgba(124, 58, 237, 0.45);
+  color: #fff;
+}
+
+.hud-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.hud-time {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+}
+
+.hud-progress-bar {
+  width: 80px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.hud-progress-fill {
+  height: 100%;
+  background: #7c3aed;
+  border-radius: 2px;
+  transition: width 0.25s linear;
+}
+
+/* ── Music library (in drawer) ────────────────────────── */
+.source-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  margin: 16px 0 0;
+}
+
+.music-library {
+  padding: 12px 0 0;
+}
+
+.library-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 0 8px;
+}
+
+.library-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.library-license {
+  font-size: 0.63rem;
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.library-tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.library-track {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+  color: #fff;
+  padding: 9px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+.library-track:hover {
+  border-color: rgba(124, 58, 237, 0.45);
+  background: rgba(124, 58, 237, 0.08);
+}
+.library-track.active {
+  border-color: #7c3aed;
+  background: rgba(124, 58, 237, 0.18);
+}
+.library-track:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.track-icon {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+.library-track.active .track-icon {
+  color: #a78bfa;
+}
+
+.track-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.track-title {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.library-track.active .track-title {
+  color: #a78bfa;
+}
+
+.track-artist {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-genre {
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* ── Error toast ──────────────────────────────────────── */
 .error-toast {
   position: absolute;

@@ -1,16 +1,21 @@
 import { useRef } from 'react';
-import type { AudioSourceType } from '../../types';
+import type { AudioSourceType, SampleTrack } from '../../types';
 import { supportsTabAudioCapture } from '../../audio/browserSupport';
+import MusicLibrary from '../MusicLibrary';
 
 interface Props {
   activeSource: AudioSourceType | null;
   onSelectSource: (type: AudioSourceType) => void;
   onSelectFile: (file: File) => void;
+  tracks: SampleTrack[];
+  currentTrackId: string | null;
+  loadingTrackId: string | null;
+  onSelectTrack: (track: SampleTrack) => void;
 }
 
 const tabSupported = supportsTabAudioCapture();
 
-const SOURCES: { type: AudioSourceType; label: string; icon: string; desc: string }[] = [
+const SOURCES: { type: Exclude<AudioSourceType, 'library'>; label: string; icon: string; desc: string }[] = [
   {
     type: 'mic',
     label: 'Microphone',
@@ -33,10 +38,18 @@ const SOURCES: { type: AudioSourceType; label: string; icon: string; desc: strin
   },
 ];
 
-export default function AudioSourcePicker({ activeSource, onSelectSource, onSelectFile }: Props) {
+export default function AudioSourcePicker({
+  activeSource,
+  onSelectSource,
+  onSelectFile,
+  tracks,
+  currentTrackId,
+  loadingTrackId,
+  onSelectTrack,
+}: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSourceClick = (type: AudioSourceType) => {
+  const handleSourceClick = (type: Exclude<AudioSourceType, 'library'>) => {
     if (type === 'file') {
       fileInputRef.current?.click();
     } else {
@@ -82,6 +95,15 @@ export default function AudioSourcePicker({ activeSource, onSelectSource, onSele
         accept="audio/*"
         style={{ display: 'none' }}
         onChange={handleFileChange}
+      />
+
+      <div className="source-divider" />
+
+      <MusicLibrary
+        tracks={tracks}
+        currentTrackId={activeSource === 'library' ? currentTrackId : null}
+        loadingTrackId={loadingTrackId}
+        onSelectTrack={onSelectTrack}
       />
     </div>
   );

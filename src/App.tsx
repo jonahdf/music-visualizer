@@ -3,6 +3,8 @@ import { audioEngine } from './audio/AudioEngine';
 import { connectMic } from './audio/sources/MicSource';
 import { connectTabAudio } from './audio/sources/TabSource';
 import { connectFile } from './audio/sources/FileSource';
+import { connectTrack } from './audio/sources/LibrarySource';
+import { SAMPLE_TRACKS } from './audio/sampleTracks';
 import { ButterchurnRenderer } from './visualizer/ButterchurnRenderer';
 import { usePresets } from './presets/usePresets';
 import type { PresetEntry } from './presets/usePresets';
@@ -11,8 +13,9 @@ import BottomBar from './ui/BottomBar';
 import Drawer from './ui/Drawer';
 import type { DrawerTab } from './ui/Drawer';
 import KeyGuide from './ui/KeyGuide';
+import NowPlayingHUD from './ui/NowPlayingHUD';
 import { GRAPHICS_PRESETS } from './types';
-import type { AudioSourceType, QualityLevel, GraphicsSettings } from './types';
+import type { AudioSourceType, QualityLevel, GraphicsSettings, SampleTrack } from './types';
 import './App.css';
 
 const INTERVALS = [0, 15000, 30000, 60000, 300000];
@@ -57,6 +60,12 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+
+  const [currentTrack, setCurrentTrack] = useState<SampleTrack | null>(null);
+  const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
+  const [trackPlaying, setTrackPlaying] = useState(false);
+  const [trackTime, setTrackTime] = useState(0);
+  const [trackDuration, setTrackDuration] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [barVisible, setBarVisible] = useState(true);
@@ -191,6 +200,20 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [initialized, interval, isHeld, goRandom]);
 
+  // Track progress polling
+  useEffect(() => {
+    if (!currentTrack) return;
+    const id = window.setInterval(() => {
+      const progress = audioEngine.getBufferProgress();
+      if (progress) {
+        setTrackTime(progress.current);
+        setTrackDuration(progress.duration);
+        setTrackPlaying(!progress.paused);
+      }
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [currentTrack]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -266,6 +289,8 @@ export default function App() {
 
   const handleSelectSource = useCallback(async (type: AudioSourceType) => {
     setError(null);
+    setCurrentTrack(null);
+    setTrackPlaying(false);
     try {
       await initRenderer();
       if (type === 'mic') await connectMic();
@@ -282,6 +307,8 @@ export default function App() {
 
   const handleSelectFile = useCallback(async (file: File) => {
     setError(null);
+    setCurrentTrack(null);
+    setTrackPlaying(false);
     try {
       await initRenderer();
       await connectFile(file);
@@ -290,6 +317,48 @@ export default function App() {
       setError((err as Error).message || 'Failed to load audio file');
     }
   }, [initRenderer]);
+
+  const handleSelectTrack = useCallback(async (track: SampleTrack) => {
+    setError(null);
+    setLoadingTrackId(track.id);
+    try {
+      await initRenderer();
+      await connectTrack(track.url);
+      setCurrentTrack(track);
+      setTrackPlaying(true);
+      setTrackTime(0);
+      setTrackDuration(0);
+      setActiveSource('library');
+    } catch (err) {
+      setError((err as Error).message || 'Failed to load track. Check your internet connection.');
+    } finally {
+      setLoadingTrackId(null);
+    }
+  }, [initRenderer]);
+
+  const handleTrackPlay = useCallback(() => {
+    audioEngine.resumeBuffer();
+    setTrackPlaying(true);
+  }, []);
+
+  const handleTrackPause = useCallback(() => {
+    audioEngine.pauseBuffer();
+    setTrackPlaying(false);
+  }, []);
+
+  const handleTrackPrev = useCallback(() => {
+    if (!currentTrack) return;
+    const idx = SAMPLE_TRACKS.findIndex(t => t.id === currentTrack.id);
+    const prev = SAMPLE_TRACKS[(idx - 1 + SAMPLE_TRACKS.length) % SAMPLE_TRACKS.length];
+    handleSelectTrack(prev);
+  }, [currentTrack, handleSelectTrack]);
+
+  const handleTrackNext = useCallback(() => {
+    if (!currentTrack) return;
+    const idx = SAMPLE_TRACKS.findIndex(t => t.id === currentTrack.id);
+    const next = SAMPLE_TRACKS[(idx + 1) % SAMPLE_TRACKS.length];
+    handleSelectTrack(next);
+  }, [currentTrack, handleSelectTrack]);
 
   const handleQualityChange = useCallback((q: QualityLevel) => {
     setQuality(q);
@@ -367,6 +436,19 @@ export default function App() {
         <div className="hint-toast">{hint}</div>
       )}
 
+      <NowPlayingHUD
+        track={currentTrack}
+        isPlaying={trackPlaying}
+        currentTime={trackTime}
+        duration={trackDuration}
+        loading={loadingTrackId !== null}
+        visible={barShown && activeSource === 'library' && !!currentTrack}
+        onPlay={handleTrackPlay}
+        onPause={handleTrackPause}
+        onPrev={handleTrackPrev}
+        onNext={handleTrackNext}
+      />
+
       <BottomBar
         visible={barShown}
         initialized={initialized}
@@ -432,6 +514,10 @@ export default function App() {
         onRemovePreset={removePreset}
         onSelectSource={handleSelectSource}
         onSelectFile={handleSelectFile}
+        libraryTracks={SAMPLE_TRACKS}
+        currentTrackId={currentTrack?.id ?? null}
+        loadingTrackId={loadingTrackId}
+        onSelectTrack={handleSelectTrack}
         onQualityChange={handleQualityChange}
         onSettingsChange={handleSettingsChange}
         onBlendTimeChange={setBlendTime}
