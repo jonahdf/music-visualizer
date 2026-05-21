@@ -18,6 +18,7 @@ import type { AudioSourceType, QualityLevel, GraphicsSettings } from './types';
 import './App.css';
 
 const INTERVALS = [0, 15000, 30000, 60000, 300000];
+const DRAWER_WIDTH = 340;
 
 function readQuality(): QualityLevel {
   const raw = localStorage.getItem('mv_quality');
@@ -125,15 +126,24 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Handle window resize
+  // Handle window resize (accounts for open drawer)
   useEffect(() => {
     const onResize = () => {
-      if (!rendererRef.current || !canvasRef.current) return;
-      rendererRef.current.resize(window.innerWidth, window.innerHeight, graphicsSettings);
+      if (!rendererRef.current) return;
+      const w = window.innerWidth - (drawerOpen ? DRAWER_WIDTH : 0);
+      rendererRef.current.resize(w, window.innerHeight, graphicsSettings);
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [graphicsSettings]);
+  }, [graphicsSettings, drawerOpen]);
+
+  // Resize canvas when drawer opens or closes
+  useEffect(() => {
+    if (!initialized || !rendererRef.current) return;
+    const w = window.innerWidth - (drawerOpen ? DRAWER_WIDTH : 0);
+    rendererRef.current.resize(w, window.innerHeight, graphicsSettings);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerOpen, initialized]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen();
@@ -355,7 +365,7 @@ export default function App() {
   const activePreset = presets.find(p => p.id === activePresetId) ?? null;
 
   return (
-    <div className={`app${!barShown ? ' cursor-hidden' : ''}`}>
+    <div className={`app${!barShown ? ' cursor-hidden' : ''}${drawerOpen ? ' app--drawer-open' : ''}`}>
       <canvas
         ref={canvasRef}
         className="visualizer-canvas"

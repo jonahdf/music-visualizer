@@ -13,6 +13,11 @@
   height: 100vh;
   image-rendering: auto;
   pointer-events: none;
+  transition: margin-left 0.22s ease;
+}
+
+.app--drawer-open .visualizer-canvas {
+  margin-left: 340px;
 }
 
 /* ── Start overlay ────────────────────────────────────── */
