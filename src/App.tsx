@@ -6,6 +6,8 @@ import { connectFile } from './audio/sources/FileSource';
 import { ButterchurnRenderer } from './visualizer/ButterchurnRenderer';
 import { usePresets } from './presets/usePresets';
 import type { PresetEntry } from './presets/usePresets';
+import { savePreset } from './presets/PresetStore';
+import type { SavedPreset } from './types';
 import { usePlaylist } from './presets/usePlaylist';
 import BottomBar from './ui/BottomBar';
 import Drawer from './ui/Drawer';
@@ -62,7 +64,7 @@ export default function App() {
   const [barVisible, setBarVisible] = useState(true);
   const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { presets, loading: loadingPresets, uploadMilkPreset, removePreset } = usePresets();
+  const { presets, loading: loadingPresets, uploadMilkPreset, removePreset, reload: reloadPresets } = usePresets();
 
   const {
     favorites,
@@ -311,6 +313,19 @@ export default function App() {
     });
   }, []);
 
+  const handleLivePreviewChange = useCallback((data: object) => {
+    rendererRef.current?.loadPreset(data, 0);
+  }, []);
+
+  const handleSaveCustomPreset = useCallback(async (name: string, data: object) => {
+    const id = `custom:${Date.now()}:${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const preset: SavedPreset = { id, name, source: 'custom', data, createdAt: Date.now() };
+    await savePreset(preset);
+    await reloadPresets();
+    rendererRef.current?.setCurrentPresetName(name);
+    setActivePresetId(id);
+  }, [reloadPresets]);
+
   const handleCanvasClick = useCallback(async () => {
     if (!initialized) await initRenderer();
   }, [initialized, initRenderer]);
@@ -435,6 +450,9 @@ export default function App() {
         onQualityChange={handleQualityChange}
         onSettingsChange={handleSettingsChange}
         onBlendTimeChange={setBlendTime}
+        activePresetData={activePreset?.data ?? null}
+        onLivePreviewChange={handleLivePreviewChange}
+        onSaveCustomPreset={handleSaveCustomPreset}
       />
     </div>
   );
