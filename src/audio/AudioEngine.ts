@@ -19,6 +19,11 @@ export class AudioEngine {
   private frequencyData: Uint8Array = new Uint8Array(0);
   private timeData: Uint8Array = new Uint8Array(0);
 
+  private currentBuffer: AudioBuffer | null = null;
+  private bufferStartedAt: number = 0;
+  private bufferOffset: number = 0;
+  private bufferPaused: boolean = false;
+
   async initContext(fftSize: number): Promise<AudioContext> {
     if (this.context && this.context.state !== 'closed') {
       return this.context;
@@ -74,14 +79,72 @@ export class AudioEngine {
 
     const arrayBuffer = await file.arrayBuffer();
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-    const bufferSource = ctx.createBufferSource();
-    bufferSource.buffer = audioBuffer;
+    if (this.vizBoostNode) this.vizBoostNode.gain.value = 1.0;
+    this.currentBuffer = audioBuffer;
+    this.bufferPaused = false;
+    this._startBuffer(0);
+  }
+
+  async connectUrl(url: string): Promise<void> {
+    if (!this.context) await this.initContext(1024);
+    const ctx = this.context!;
+    await ctx.resume();
+    this.disconnectSource();
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to load track (HTTP ${response.status})`);
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    if (this.vizBoostNode) this.vizBoostNode.gain.value = 1.0;
+    this.currentBuffer = audioBuffer;
+    this.bufferPaused = false;
+    this._startBuffer(0);
+  }
+
+  private _startBuffer(offset: number) {
+    if (!this.context || !this.currentBuffer) return;
+    if (this.source) {
+      try { this.source.disconnect(); } catch {}
+      this.source = null;
+    }
+    const safeOffset = offset % this.currentBuffer.duration;
+    const bufferSource = this.context.createBufferSource();
+    bufferSource.buffer = this.currentBuffer;
     bufferSource.loop = true;
     bufferSource.connect(this.analyser!);
     bufferSource.connect(this.gainNode!);
-    bufferSource.start();
-    if (this.vizBoostNode) this.vizBoostNode.gain.value = 1.0;
+    bufferSource.start(0, safeOffset);
+    this.bufferStartedAt = this.context.currentTime;
+    this.bufferOffset = safeOffset;
     this.source = bufferSource;
+  }
+
+  pauseBuffer() {
+    if (!this.context || !this.currentBuffer || this.bufferPaused || !this.source) return;
+    const elapsed = this.context.currentTime - this.bufferStartedAt;
+    const offset = (this.bufferOffset + elapsed) % this.currentBuffer.duration;
+    try { (this.source as AudioBufferSourceNode).stop(); } catch {}
+    this.source = null;
+    this.bufferOffset = offset;
+    this.bufferPaused = true;
+  }
+
+  resumeBuffer() {
+    if (!this.currentBuffer || !this.bufferPaused) return;
+    this.bufferPaused = false;
+    this._startBuffer(this.bufferOffset);
+  }
+
+  getBufferProgress(): { current: number; duration: number; paused: boolean } | null {
+    if (!this.currentBuffer || !this.context) return null;
+    let current: number;
+    if (this.bufferPaused) {
+      current = this.bufferOffset;
+    } else {
+      const elapsed = this.context.currentTime - this.bufferStartedAt;
+      current = (this.bufferOffset + elapsed) % this.currentBuffer.duration;
+    }
+    return { current, duration: this.currentBuffer.duration, paused: this.bufferPaused };
   }
 
   disconnectSource() {
@@ -93,6 +156,10 @@ export class AudioEngine {
       this.stream.getTracks().forEach(t => t.stop());
       this.stream = null;
     }
+    this.currentBuffer = null;
+    this.bufferPaused = false;
+    this.bufferOffset = 0;
+    this.bufferStartedAt = 0;
   }
 
   getAudioData(): AudioData {

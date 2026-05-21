@@ -1,4 +1,12 @@
-export type AudioSourceType = 'mic' | 'file' | 'tab';
+export type AudioSourceType = 'mic' | 'file' | 'tab' | 'library';
+
+export interface SampleTrack {
+  id: string;
+  title: string;
+  artist: string;
+  genre: string;
+  url: string;
+}
 
 export interface AudioSourceState {
   type: AudioSourceType;
