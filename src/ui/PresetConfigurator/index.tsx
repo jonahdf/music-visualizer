@@ -237,6 +237,23 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     applyPreset({ ...preset, ...updates });
   };
 
+  const handleRandomizeAll = () => {
+    const updates: Record<string, unknown> = {};
+    const groups: ParamGroup[] = ['motion', 'wave', 'color', 'borders'];
+    for (const group of groups) {
+      for (const param of PARAMS_BY_GROUP[group]) {
+        if (param.type === 'float' || param.type === 'color-channel') {
+          updates[param.key] = param.min! + Math.random() * (param.max! - param.min!);
+        } else if (param.type === 'enum' && param.options) {
+          updates[param.key] = param.options[Math.floor(Math.random() * param.options.length)].value;
+        } else if (param.type === 'bool') {
+          updates[param.key] = Math.random() > 0.5 ? 1 : 0;
+        }
+      }
+    }
+    applyPreset({ ...preset, ...updates });
+  };
+
   const handleCopyAIPrompt = async () => {
     const prompt = buildAIPrompt(preset);
     try {
@@ -352,6 +369,14 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
             </button>
           </div>
         )}
+
+        <button
+          className="cfg-btn cfg-btn-accent"
+          onClick={handleRandomizeAll}
+          title="Randomize all parameters across every tab"
+        >
+          🎲 All
+        </button>
       </div>
 
       {/* Sub-tabs + per-tab actions */}
