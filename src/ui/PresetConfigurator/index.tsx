@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { PARAMS_BY_GROUP, PARAM_BY_KEY } from './parameterDefs';
 import type { ParamDef, ParamGroup } from './parameterDefs';
 import { DEFAULT_PRESET } from './defaultPreset';
+import { toButterchurnPreset, fromButterchurnPreset } from './presetConvert';
 import { buildAIPrompt } from './aiPromptBuilder';
 import './PresetConfigurator.css';
 
@@ -142,20 +143,20 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
 
   const applyPreset = useCallback((updated: Record<string, unknown>) => {
     setPreset(updated);
-    onLivePreviewChange(updated);
+    onLivePreviewChange(toButterchurnPreset(updated));
   }, [onLivePreviewChange]);
 
   const setParam = useCallback((key: string, value: unknown) => {
     setPreset(prev => {
       const updated = { ...prev, [key]: value };
-      onLivePreviewChange(updated);
+      onLivePreviewChange(toButterchurnPreset(updated));
       return updated;
     });
   }, [onLivePreviewChange]);
 
   const handleLoadFromCurrent = () => {
     if (!activePresetData) return;
-    applyPreset({ ...DEFAULT_PRESET, ...(activePresetData as Record<string, unknown>) });
+    applyPreset(fromButterchurnPreset(activePresetData));
   };
 
   const handleReset = () => applyPreset({ ...DEFAULT_PRESET });
@@ -228,13 +229,13 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
 
   const handleSave = async () => {
     if (!presetName.trim()) return;
-    await onSaveCustomPreset(presetName.trim(), preset);
+    await onSaveCustomPreset(presetName.trim(), toButterchurnPreset(preset));
     setSaveMsg('Saved!');
     setTimeout(() => setSaveMsg(''), 2500);
   };
 
   const handleExportJSON = () => {
-    const blob = new Blob([JSON.stringify(preset, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(toButterchurnPreset(preset), null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

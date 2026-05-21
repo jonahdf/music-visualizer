@@ -8,16 +8,19 @@
 }
 
 .visualizer-canvas {
-  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100vw;
   height: 100vh;
   image-rendering: auto;
   pointer-events: none;
-  transition: margin-left 0.22s ease;
+  transition: left 0.22s ease, width 0.22s ease;
 }
 
 .app--drawer-open .visualizer-canvas {
-  margin-left: 340px;
+  left: 340px;
+  width: calc(100vw - 340px);
 }
 
 /* ── Start overlay ────────────────────────────────────── */
