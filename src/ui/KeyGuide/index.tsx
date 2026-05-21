@@ -4,18 +4,18 @@ interface Props {
 }
 
 const SHORTCUTS = [
-  { key: '← →', action: 'Prev / Next preset' },
-  { key: 'R', action: 'Random preset' },
-  { key: 'Space', action: 'Random preset' },
-  { key: 'L', action: 'Favorite preset' },
+  { key: '← →', action: 'Prev / Next' },
+  { key: 'R', action: 'Random' },
+  { key: 'Space', action: 'Random' },
+  { key: 'L', action: 'Favorite' },
   { key: 'F', action: 'Fullscreen' },
-  { key: 'M', action: 'Mute / Unmute' },
-  { key: 'H', action: 'Hold auto-advance' },
-  { key: 'A', action: 'Cycle auto-advance' },
-  { key: '1 – 4', action: 'Quality level' },
-  { key: 'P', action: 'Open / close menu' },
-  { key: '?', action: 'Toggle this guide' },
-  { key: 'Esc', action: 'Close menu / guide' },
+  { key: 'M', action: 'Mute' },
+  { key: 'H', action: 'Hold timer' },
+  { key: 'A', action: 'Cycle timer' },
+  { key: '1–4', action: 'Quality' },
+  { key: 'P', action: 'Menu' },
+  { key: '?', action: 'This guide' },
+  { key: 'Esc', action: 'Close' },
 ] as const;
 
 export default function KeyGuide({ visible, onClose }: Props) {

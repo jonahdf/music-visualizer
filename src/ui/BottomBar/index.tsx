@@ -15,6 +15,8 @@ interface Props {
   interval: number;
   isFavorite: (id: string) => boolean;
   onToggleFavorite: (id: string) => void;
+  isExcluded: (id: string) => boolean;
+  onToggleExclude: (id: string) => void;
   onPrev: () => void;
   onNext: () => void;
   onRandom: () => void;
@@ -39,6 +41,8 @@ export default function BottomBar({
   interval,
   isFavorite,
   onToggleFavorite,
+  isExcluded,
+  onToggleExclude,
   onPrev,
   onNext,
   onRandom,
@@ -61,13 +65,22 @@ export default function BottomBar({
             <div className="bar-preset">
               <span className="bar-preset-name" title={activePreset?.name}>{activePreset?.name ?? '—'}</span>
               {activePreset && (
-                <button
-                  className={`bar-fav${isFavorite(activePresetId) ? ' active' : ''}`}
-                  onClick={() => onToggleFavorite(activePresetId)}
-                  title="Favorite (L)"
-                >
-                  {isFavorite(activePresetId) ? '♥' : '♡'}
-                </button>
+                <>
+                  <button
+                    className={`bar-fav${isFavorite(activePresetId) ? ' active' : ''}`}
+                    onClick={() => onToggleFavorite(activePresetId)}
+                    title="Favorite (L)"
+                  >
+                    {isFavorite(activePresetId) ? '♥' : '♡'}
+                  </button>
+                  <button
+                    className={`bar-block${isExcluded(activePresetId) ? ' active' : ''}`}
+                    onClick={() => onToggleExclude(activePresetId)}
+                    title={isExcluded(activePresetId) ? 'Unblock preset' : 'Block preset from auto-advance'}
+                  >
+                    ⊘
+                  </button>
+                </>
               )}
             </div>
             <button className="bar-btn" onClick={onNext} title="Next preset (→)">▶</button>
@@ -118,3 +131,4 @@ export default function BottomBar({
     </div>
   );
 }
+

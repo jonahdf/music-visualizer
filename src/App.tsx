@@ -381,6 +381,8 @@ export default function App() {
         interval={interval}
         isFavorite={isFavorite}
         onToggleFavorite={toggleFavorite}
+        isExcluded={isExcluded}
+        onToggleExclude={toggleExclude}
         onPrev={goPrev}
         onNext={goNext}
         onRandom={goRandom}
