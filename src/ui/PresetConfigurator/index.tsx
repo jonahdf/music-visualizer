@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { PARAMS_BY_GROUP, PARAM_BY_KEY } from './parameterDefs';
 import type { ParamDef, ParamGroup } from './parameterDefs';
 import { DEFAULT_PRESET } from './defaultPreset';
@@ -41,6 +42,47 @@ const SUB_TABS: { id: ParamGroup; label: string }[] = [
   { id: 'code', label: 'Code' },
 ];
 
+// ── Floating tooltip via portal ───────────────────────────────────────────────
+
+function FloatingTooltip({
+  btnRef,
+  text,
+  onClose,
+}: {
+  btnRef: React.RefObject<HTMLButtonElement | null>;
+  text: string;
+  onClose: () => void;
+}) {
+  const [style, setStyle] = useState<React.CSSProperties>({});
+
+  useEffect(() => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setStyle({
+      position: 'fixed',
+      top: r.bottom + 4,
+      right: Math.max(8, window.innerWidth - r.right),
+      maxWidth: 220,
+      zIndex: 9999,
+    });
+  }, [btnRef]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest('.cfg-tooltip') && !t.closest('.cfg-desc-btn')) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="cfg-tooltip" style={style}>{text}</div>,
+    document.body,
+  );
+}
+
 // ── ParamRow ─────────────────────────────────────────────────────────────────
 
 interface ParamRowProps {
@@ -52,9 +94,13 @@ interface ParamRowProps {
 
 function ParamRow({ param, preset, setParam, compact }: ParamRowProps) {
   const [showDesc, setShowDesc] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
   if (param.type === 'code') return null;
 
   const numValue = getNum(preset, param.key, typeof param.default === 'number' ? param.default : 0);
+  const toggleDesc = () => setShowDesc(v => !v);
+  const closeDesc = () => setShowDesc(false);
 
   if (param.type === 'bool') {
     const on = numValue === 1;
@@ -66,8 +112,8 @@ function ParamRow({ param, preset, setParam, compact }: ParamRowProps) {
         >
           {on ? '● ' : '○ '}{param.label}
         </button>
-        <button className="cfg-desc-btn" onClick={() => setShowDesc(v => !v)} title="About">?</button>
-        {showDesc && <p className="cfg-param-desc" style={{ width: '100%' }}>{param.description}</p>}
+        <button ref={btnRef} className="cfg-desc-btn" onClick={toggleDesc} title="About">?</button>
+        {showDesc && <FloatingTooltip btnRef={btnRef} text={param.description} onClose={closeDesc} />}
       </div>
     );
   }
@@ -77,9 +123,9 @@ function ParamRow({ param, preset, setParam, compact }: ParamRowProps) {
       <div className={`cfg-param-row${compact ? ' compact' : ''}`}>
         <div className="cfg-param-header">
           <label className="cfg-param-label">{compact ? shortLabel(param.key, param.label) : param.label}</label>
-          <button className="cfg-desc-btn" onClick={() => setShowDesc(v => !v)} title="About">?</button>
+          <button ref={btnRef} className="cfg-desc-btn" onClick={toggleDesc} title="About">?</button>
+          {showDesc && <FloatingTooltip btnRef={btnRef} text={param.description} onClose={closeDesc} />}
         </div>
-        {showDesc && <p className="cfg-param-desc">{param.description}</p>}
         <select
           className="cfg-select"
           value={numValue}
@@ -110,11 +156,13 @@ function ParamRow({ param, preset, setParam, compact }: ParamRowProps) {
         <div className="cfg-param-right">
           <span className="cfg-param-value">{displayValue}</span>
           {!compact && (
-            <button className="cfg-desc-btn" onClick={() => setShowDesc(v => !v)} title="About">?</button>
+            <>
+              <button ref={btnRef} className="cfg-desc-btn" onClick={toggleDesc} title="About">?</button>
+              {showDesc && <FloatingTooltip btnRef={btnRef} text={param.description} onClose={closeDesc} />}
+            </>
           )}
         </div>
       </div>
-      {showDesc && <p className="cfg-param-desc">{param.description}</p>}
       <input
         type="range"
         className="cfg-slider"
@@ -140,6 +188,8 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const [importReplace, setImportReplace] = useState(false);
   const [importError, setImportError] = useState('');
   const [saveMsg, setSaveMsg] = useState('');
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmChecked, setConfirmChecked] = useState(false);
 
   const applyPreset = useCallback((updated: Record<string, unknown>) => {
     setPreset(updated);
@@ -159,9 +209,21 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     applyPreset(fromButterchurnPreset(activePresetData));
   };
 
-  const handleReset = () => applyPreset({ ...DEFAULT_PRESET });
+  const handleResetAll = () => {
+    applyPreset({ ...DEFAULT_PRESET });
+    setConfirmReset(false);
+    setConfirmChecked(false);
+  };
 
-  const handleRandomize = () => {
+  const handleResetTab = () => {
+    const updates: Record<string, unknown> = {};
+    for (const param of PARAMS_BY_GROUP[subTab]) {
+      updates[param.key] = param.default;
+    }
+    applyPreset({ ...preset, ...updates });
+  };
+
+  const handleRandomizeTab = () => {
     const updates: Record<string, unknown> = {};
     for (const param of PARAMS_BY_GROUP[subTab]) {
       if (param.type === 'float' || param.type === 'color-channel') {
@@ -179,13 +241,9 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     const prompt = buildAIPrompt(preset);
     try {
       await navigator.clipboard.writeText(prompt);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    } catch {
-      // fallback: show prompt in a textarea for manual copy
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    }
+    } catch { /* fallback: silent */ }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   const handleImport = () => {
@@ -250,7 +308,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
 
   return (
     <div className="configurator">
-      {/* Toolbar */}
+      {/* Global toolbar */}
       <div className="configurator-toolbar">
         <button
           className="cfg-btn"
@@ -260,29 +318,73 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
         >
           Load Current
         </button>
-        <button className="cfg-btn" onClick={handleReset} title="Reset all parameters to defaults">
-          Reset
-        </button>
-        <button
-          className="cfg-btn cfg-btn-accent"
-          onClick={handleRandomize}
-          title={`Randomize all ${subTab} parameters`}
-        >
-          ⟳ Randomize
-        </button>
+
+        {!confirmReset ? (
+          <button
+            className="cfg-btn"
+            onClick={() => setConfirmReset(true)}
+            title="Reset all parameters to defaults (will ask for confirmation)"
+          >
+            Reset All
+          </button>
+        ) : (
+          <div className="cfg-confirm-row">
+            <label className="cfg-confirm-label">
+              <input
+                type="checkbox"
+                checked={confirmChecked}
+                onChange={e => setConfirmChecked(e.target.checked)}
+              />
+              Discard all?
+            </label>
+            <button
+              className="cfg-btn"
+              disabled={!confirmChecked}
+              onClick={handleResetAll}
+            >
+              Reset
+            </button>
+            <button
+              className="cfg-btn"
+              onClick={() => { setConfirmReset(false); setConfirmChecked(false); }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Sub-tabs */}
-      <div className="cfg-subtabs">
-        {SUB_TABS.map(t => (
-          <button
-            key={t.id}
-            className={`cfg-subtab${subTab === t.id ? ' active' : ''}`}
-            onClick={() => setSubTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Sub-tabs + per-tab actions */}
+      <div className="cfg-subtabs-row">
+        <div className="cfg-subtabs">
+          {SUB_TABS.map(t => (
+            <button
+              key={t.id}
+              className={`cfg-subtab${subTab === t.id ? ' active' : ''}`}
+              onClick={() => setSubTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {subTab !== 'code' && (
+          <div className="cfg-tab-actions">
+            <button
+              className="cfg-tab-action-btn"
+              onClick={handleResetTab}
+              title={`Reset ${subTab} tab to defaults`}
+            >
+              ↺
+            </button>
+            <button
+              className="cfg-tab-action-btn cfg-tab-action-rand"
+              onClick={handleRandomizeTab}
+              title={`Randomize ${subTab} tab`}
+            >
+              🎲
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Parameter section */}

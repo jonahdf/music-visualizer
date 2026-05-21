@@ -17,6 +17,8 @@ const INTERVAL_OPTIONS = [
 
 interface Props {
   open: boolean;
+  drawerWidth?: number;
+  onResizeStart?: (e: React.MouseEvent) => void;
   tab: DrawerTab;
   onTabChange: (tab: DrawerTab) => void;
   onClose: () => void;
@@ -55,6 +57,8 @@ interface Props {
 
 export default function Drawer({
   open,
+  drawerWidth,
+  onResizeStart,
   tab,
   onTabChange,
   onClose,
@@ -91,7 +95,13 @@ export default function Drawer({
   onSaveCustomPreset,
 }: Props) {
   return (
-    <div className={`drawer${open ? ' drawer-open' : ''}`}>
+    <div
+      className={`drawer${open ? ' drawer-open' : ''}`}
+      style={drawerWidth ? { width: drawerWidth } : undefined}
+    >
+      {onResizeStart && (
+        <div className="drawer-resize-handle" onMouseDown={onResizeStart} />
+      )}
       <div className="drawer-header">
         <div className="drawer-tabs">
           <button

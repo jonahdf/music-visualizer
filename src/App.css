@@ -19,8 +19,12 @@
 }
 
 .app--drawer-open .visualizer-canvas {
-  left: 340px;
-  width: calc(100vw - 340px);
+  left: var(--drawer-width, 340px);
+  width: calc(100vw - var(--drawer-width, 340px));
+}
+
+.app--resizing .visualizer-canvas {
+  transition: none;
 }
 
 /* ── Start overlay ────────────────────────────────────── */
@@ -256,7 +260,7 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: 340px;
+  width: var(--drawer-width, 340px);
   max-width: 100vw;
   height: 100vh;
   background: rgba(10, 10, 18, 0.93);
@@ -270,6 +274,28 @@
 }
 
 .drawer-open { transform: translateX(0); }
+
+.drawer-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 10;
+}
+.drawer-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 3px;
+  width: 2px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  transition: background 0.15s;
+}
+.drawer-resize-handle:hover::after { background: rgba(124, 58, 237, 0.5); }
+.app--resizing .drawer-resize-handle::after { background: rgba(124, 58, 237, 0.7); }
 
 .drawer-header {
   display: flex;
