@@ -61,6 +61,36 @@ export function toButterchurnPreset(params: Record<string, unknown>): object {
   };
 }
 
+/**
+ * Merges flat configurator params into an existing butterchurn preset, preserving
+ * its warp/composite shaders, wave-specific settings, and shape data. This is
+ * what "Load from current" uses — the slider changes only patch baseVals.
+ */
+export function mergeIntoButterchurnPreset(params: Record<string, unknown>, base: object): object {
+  const data = base as Record<string, unknown>;
+  const existingBaseVals = (data.baseVals as Record<string, unknown>) ?? {};
+  const newBaseVals: Record<string, unknown> = { ...existingBaseVals };
+
+  for (const [k, v] of Object.entries(params)) {
+    if (k === 'per_frame_init_eqs_str' || k === 'per_frame_eqs_str' || k === 'per_pixel_eqs_str') continue;
+    newBaseVals[TO_BC[k] ?? k] = v;
+  }
+
+  return {
+    ...data,
+    baseVals: newBaseVals,
+    init_eqs_str: params.per_frame_init_eqs_str !== undefined
+      ? String(params.per_frame_init_eqs_str)
+      : (data.init_eqs_str ?? ''),
+    frame_eqs_str: params.per_frame_eqs_str !== undefined
+      ? String(params.per_frame_eqs_str)
+      : (data.frame_eqs_str ?? ''),
+    pixel_eqs_str: params.per_pixel_eqs_str !== undefined
+      ? String(params.per_pixel_eqs_str)
+      : (data.pixel_eqs_str ?? ''),
+  };
+}
+
 export function fromButterchurnPreset(presetData: object): Record<string, unknown> {
   const data = presetData as Record<string, unknown>;
   const baseVals = (data.baseVals as Record<string, unknown>) ?? {};

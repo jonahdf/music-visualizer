@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { PARAMS_BY_GROUP, PARAM_BY_KEY } from './parameterDefs';
 import type { ParamDef, ParamGroup } from './parameterDefs';
 import { DEFAULT_PRESET } from './defaultPreset';
-import { toButterchurnPreset, fromButterchurnPreset } from './presetConvert';
+import { toButterchurnPreset, mergeIntoButterchurnPreset, fromButterchurnPreset } from './presetConvert';
 import { buildAIPrompt } from './aiPromptBuilder';
 import './PresetConfigurator.css';
 
@@ -180,6 +180,8 @@ function ParamRow({ param, preset, setParam, compact }: ParamRowProps) {
 
 export default function PresetConfigurator({ activePresetData, onLivePreviewChange, onSaveCustomPreset }: Props) {
   const [preset, setPreset] = useState<Record<string, unknown>>({ ...DEFAULT_PRESET });
+  const [baseBcPreset, setBaseBcPreset] = useState<object | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
   const [presetName, setPresetName] = useState('My Custom Preset');
   const [subTab, setSubTab] = useState<ParamGroup>('motion');
   const [copied, setCopied] = useState(false);
@@ -188,32 +190,60 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const [importReplace, setImportReplace] = useState(false);
   const [importError, setImportError] = useState('');
   const [saveMsg, setSaveMsg] = useState('');
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmMode, setConfirmMode] = useState<'reset' | 'randomize' | null>(null);
   const [confirmChecked, setConfirmChecked] = useState(false);
 
-  const applyPreset = useCallback((updated: Record<string, unknown>) => {
+  const buildBcPreset = useCallback((params: Record<string, unknown>, base: object | null): object => {
+    return base ? mergeIntoButterchurnPreset(params, base) : toButterchurnPreset(params);
+  }, []);
+
+  const applyPreset = useCallback((updated: Record<string, unknown>, base: object | null = baseBcPreset) => {
     setPreset(updated);
-    onLivePreviewChange(toButterchurnPreset(updated));
-  }, [onLivePreviewChange]);
+    onLivePreviewChange(base ? mergeIntoButterchurnPreset(updated, base) : toButterchurnPreset(updated));
+  }, [onLivePreviewChange, baseBcPreset]);
 
   const setParam = useCallback((key: string, value: unknown) => {
+    setIsDirty(true);
     setPreset(prev => {
       const updated = { ...prev, [key]: value };
-      onLivePreviewChange(toButterchurnPreset(updated));
+      onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(updated, baseBcPreset) : toButterchurnPreset(updated));
       return updated;
     });
-  }, [onLivePreviewChange]);
+  }, [onLivePreviewChange, baseBcPreset]);
 
   const handleLoadFromCurrent = () => {
     if (!activePresetData) return;
-    applyPreset(fromButterchurnPreset(activePresetData));
+    const flat = fromButterchurnPreset(activePresetData);
+    setPreset(flat);
+    setBaseBcPreset(activePresetData);
+    setIsDirty(false);
+    onLivePreviewChange(activePresetData);
   };
 
   const handleResetAll = () => {
-    applyPreset({ ...DEFAULT_PRESET });
-    setConfirmReset(false);
+    setPreset({ ...DEFAULT_PRESET });
+    setBaseBcPreset(null);
+    setIsDirty(false);
+    onLivePreviewChange(toButterchurnPreset(DEFAULT_PRESET));
+    setConfirmMode(null);
     setConfirmChecked(false);
   };
+
+  // Conservative ranges for randomize — avoids extreme values that look broken
+  const RAND_RANGE: Record<string, [number, number]> = {
+    zoom: [0.88, 1.12], rot: [-0.06, 0.06], warp: [0, 1.5],
+    fDecay: [0.90, 0.998], fWarpScale: [0.1, 1.5], fWarpAnimSpeed: [0.1, 3.0],
+    fZoomExponent: [0.5, 2.0], fShader: [0, 0.4],
+    fWaveAlpha: [30, 180], fWaveScale: [0.1, 3.0],
+    fVideoEchoZoom: [1.0, 1.4], fVideoEchoAlpha: [0, 0.4],
+    dx: [-0.1, 0.1], dy: [-0.1, 0.1],
+    sx: [0.8, 1.2], sy: [0.8, 1.2],
+  };
+
+  function randValue(param: ParamDef): number {
+    const [lo, hi] = RAND_RANGE[param.key] ?? [param.min ?? 0, param.max ?? 1];
+    return lo + Math.random() * (hi - lo);
+  }
 
   const handleResetTab = () => {
     const updates: Record<string, unknown> = {};
@@ -227,7 +257,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     const updates: Record<string, unknown> = {};
     for (const param of PARAMS_BY_GROUP[subTab]) {
       if (param.type === 'float' || param.type === 'color-channel') {
-        updates[param.key] = param.min! + Math.random() * (param.max! - param.min!);
+        updates[param.key] = randValue(param);
       } else if (param.type === 'enum' && param.options) {
         updates[param.key] = param.options[Math.floor(Math.random() * param.options.length)].value;
       } else if (param.type === 'bool') {
@@ -237,13 +267,13 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     applyPreset({ ...preset, ...updates });
   };
 
-  const handleRandomizeAll = () => {
+  const doRandomizeAll = () => {
     const updates: Record<string, unknown> = {};
     const groups: ParamGroup[] = ['motion', 'wave', 'color', 'borders'];
     for (const group of groups) {
       for (const param of PARAMS_BY_GROUP[group]) {
         if (param.type === 'float' || param.type === 'color-channel') {
-          updates[param.key] = param.min! + Math.random() * (param.max! - param.min!);
+          updates[param.key] = randValue(param);
         } else if (param.type === 'enum' && param.options) {
           updates[param.key] = param.options[Math.floor(Math.random() * param.options.length)].value;
         } else if (param.type === 'bool') {
@@ -252,6 +282,17 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
       }
     }
     applyPreset({ ...preset, ...updates });
+    setIsDirty(false);
+    setConfirmMode(null);
+    setConfirmChecked(false);
+  };
+
+  const handleRandomizeAll = () => {
+    if (isDirty) {
+      setConfirmMode('randomize');
+    } else {
+      doRandomizeAll();
+    }
   };
 
   const handleCopyAIPrompt = async () => {
@@ -304,13 +345,13 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
 
   const handleSave = async () => {
     if (!presetName.trim()) return;
-    await onSaveCustomPreset(presetName.trim(), toButterchurnPreset(preset));
+    await onSaveCustomPreset(presetName.trim(), buildBcPreset(preset, baseBcPreset));
     setSaveMsg('Saved!');
     setTimeout(() => setSaveMsg(''), 2500);
   };
 
   const handleExportJSON = () => {
-    const blob = new Blob([JSON.stringify(toButterchurnPreset(preset), null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(buildBcPreset(preset, baseBcPreset), null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -336,14 +377,23 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
           Load Current
         </button>
 
-        {!confirmReset ? (
-          <button
-            className="cfg-btn"
-            onClick={() => setConfirmReset(true)}
-            title="Reset all parameters to defaults (will ask for confirmation)"
-          >
-            Reset All
-          </button>
+        {confirmMode === null ? (
+          <>
+            <button
+              className="cfg-btn"
+              onClick={() => setConfirmMode('reset')}
+              title="Reset all parameters to defaults"
+            >
+              Reset All
+            </button>
+            <button
+              className="cfg-btn cfg-btn-accent"
+              onClick={handleRandomizeAll}
+              title="Randomize all parameters across every tab"
+            >
+              🎲 All
+            </button>
+          </>
         ) : (
           <div className="cfg-confirm-row">
             <label className="cfg-confirm-label">
@@ -352,31 +402,23 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
                 checked={confirmChecked}
                 onChange={e => setConfirmChecked(e.target.checked)}
               />
-              Discard all?
+              {confirmMode === 'reset' ? 'Discard all?' : 'Randomize all?'}
             </label>
             <button
               className="cfg-btn"
               disabled={!confirmChecked}
-              onClick={handleResetAll}
+              onClick={confirmMode === 'reset' ? handleResetAll : doRandomizeAll}
             >
-              Reset
+              {confirmMode === 'reset' ? 'Reset' : '🎲 Go'}
             </button>
             <button
               className="cfg-btn"
-              onClick={() => { setConfirmReset(false); setConfirmChecked(false); }}
+              onClick={() => { setConfirmMode(null); setConfirmChecked(false); }}
             >
               ✕
             </button>
           </div>
         )}
-
-        <button
-          className="cfg-btn cfg-btn-accent"
-          onClick={handleRandomizeAll}
-          title="Randomize all parameters across every tab"
-        >
-          🎲 All
-        </button>
       </div>
 
       {/* Sub-tabs + per-tab actions */}
