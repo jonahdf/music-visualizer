@@ -7,10 +7,15 @@ import { ButterchurnRenderer } from './visualizer/ButterchurnRenderer';
 import { usePresets } from './presets/usePresets';
 import type { PresetEntry } from './presets/usePresets';
 import { usePlaylist } from './presets/usePlaylist';
-import Menu from './ui/Menu';
+import BottomBar from './ui/BottomBar';
+import Drawer from './ui/Drawer';
+import type { DrawerTab } from './ui/Drawer';
+import KeyGuide from './ui/KeyGuide';
 import { GRAPHICS_PRESETS } from './types';
 import type { AudioSourceType, QualityLevel, GraphicsSettings } from './types';
 import './App.css';
+
+const INTERVALS = [0, 15000, 30000, 60000, 300000];
 
 function readQuality(): QualityLevel {
   const raw = localStorage.getItem('mv_quality');
@@ -40,7 +45,9 @@ export default function App() {
   const rendererRef = useRef<ButterchurnRenderer | null>(null);
   const fpsCounterRef = useRef({ frames: 0, lastTime: performance.now() });
 
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<DrawerTab>('presets');
+  const [keyGuideVisible, setKeyGuideVisible] = useState(false);
   const [activeSource, setActiveSource] = useState<AudioSourceType | null>(null);
   const [quality, setQuality] = useState<QualityLevel>(readQuality);
   const [graphicsSettings, setGraphicsSettings] = useState<GraphicsSettings>(readGraphicsSettings);
@@ -52,7 +59,7 @@ export default function App() {
   const [initialized, setInitialized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [hudVisible, setHudVisible] = useState(true);
+  const [barVisible, setBarVisible] = useState(true);
   const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { presets, loading: loadingPresets, uploadMilkPreset, removePreset } = usePresets();
@@ -131,14 +138,13 @@ export default function App() {
     else document.exitFullscreen();
   }, []);
 
-  // Sync fullscreen state
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onFsChange);
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
-  // Auto-load first preset once presets are available and renderer is ready
+  // Auto-load first preset once ready
   useEffect(() => {
     if (!initialized || presets.length === 0 || activePresetId) return;
     const first = presets[0];
@@ -154,7 +160,6 @@ export default function App() {
     setActivePresetId(preset.id);
   }, [initialized, blendTime]);
 
-  // Playlist navigation helpers
   const goNext = useCallback(() => {
     if (!initialized || presets.length === 0) return;
     const pool = getPool(presets);
@@ -191,16 +196,32 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
 
-      if (e.code === 'Space' && !isInput) {
-        e.preventDefault();
-        setMenuOpen(open => !open);
+      if (e.code === 'Escape') {
+        setDrawerOpen(false);
+        setKeyGuideVisible(false);
+        return;
+      }
+      if (e.key === '?' && !isInput) {
+        setKeyGuideVisible(v => !v);
         return;
       }
       if ((e.key === 'f' || e.key === 'F') && !isInput) {
         toggleFullscreen();
         return;
       }
-      if (!initialized || isInput) return;
+      if ((e.key === 'p' || e.key === 'P') && !isInput) {
+        setDrawerOpen(open => !open);
+        setDrawerTab('presets');
+        return;
+      }
+      if (e.code === 'Space' && !isInput) {
+        e.preventDefault();
+        if (initialized) goRandom();
+        else initRenderer();
+        return;
+      }
+
+      if (isInput) return;
 
       switch (e.code) {
         case 'ArrowRight':
@@ -217,6 +238,9 @@ export default function App() {
         case 'KeyH':
           toggleHold();
           break;
+        case 'KeyL':
+          if (activePresetId) toggleFavorite(activePresetId);
+          break;
         case 'KeyM':
           setIsMuted(prev => {
             const next = !prev;
@@ -224,11 +248,21 @@ export default function App() {
             return next;
           });
           break;
+        case 'KeyA': {
+          const idx = INTERVALS.indexOf(interval);
+          setPlaylistInterval(INTERVALS[(idx + 1) % INTERVALS.length]);
+          break;
+        }
+        case 'Digit1': handleQualityChange('low'); break;
+        case 'Digit2': handleQualityChange('medium'); break;
+        case 'Digit3': handleQualityChange('high'); break;
+        case 'Digit4': handleQualityChange('ultra'); break;
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [initialized, toggleFullscreen, goNext, goPrev, goRandom, toggleHold]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialized, toggleFullscreen, goNext, goPrev, goRandom, toggleHold, toggleFavorite, activePresetId, interval, setPlaylistInterval, initRenderer]);
 
   const handleSelectSource = useCallback(async (type: AudioSourceType) => {
     setError(null);
@@ -278,36 +312,35 @@ export default function App() {
   }, []);
 
   const handleCanvasClick = useCallback(async () => {
-    if (!initialized) {
-      await initRenderer();
-    }
+    if (!initialized) await initRenderer();
   }, [initialized, initRenderer]);
 
-  // Auto-hide HUD after 3s of mouse inactivity
+  // Auto-hide bottom bar after 3s of inactivity
   useEffect(() => {
     const resetTimer = () => {
-      setHudVisible(true);
+      setBarVisible(true);
       if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
-      activityTimerRef.current = setTimeout(() => setHudVisible(false), 3000);
+      activityTimerRef.current = setTimeout(() => setBarVisible(false), 3000);
     };
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart'] as const;
     resetTimer();
-    window.addEventListener('mousemove', resetTimer);
+    events.forEach(e => window.addEventListener(e, resetTimer));
     return () => {
-      window.removeEventListener('mousemove', resetTimer);
+      events.forEach(e => window.removeEventListener(e, resetTimer));
       if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
     };
   }, []);
 
-  // Persist graphics settings
+  // Persist settings
   useEffect(() => { localStorage.setItem('mv_quality', quality); }, [quality]);
   useEffect(() => { localStorage.setItem('mv_graphics_settings', JSON.stringify(graphicsSettings)); }, [graphicsSettings]);
   useEffect(() => { localStorage.setItem('mv_blend_time', String(blendTime)); }, [blendTime]);
 
-  const hudHidden = !hudVisible && !menuOpen;
+  const barShown = barVisible || drawerOpen || keyGuideVisible;
   const activePreset = presets.find(p => p.id === activePresetId) ?? null;
 
   return (
-    <div className={`app${hudHidden ? ' cursor-hidden' : ''}`}>
+    <div className={`app${!barShown ? ' cursor-hidden' : ''}`}>
       <canvas
         ref={canvasRef}
         className="visualizer-canvas"
@@ -319,7 +352,7 @@ export default function App() {
           <div className="start-prompt">
             <h1>Music Visualizer</h1>
             <p>Click anywhere to begin</p>
-            <p className="start-hint">Press Space to open the menu and connect an audio source</p>
+            <p className="start-hint">Connect an audio source via ☰ menu</p>
           </div>
         </div>
       )}
@@ -334,105 +367,75 @@ export default function App() {
         <div className="hint-toast">{hint}</div>
       )}
 
-      <div className={`hud${hudHidden ? ' hud-hidden' : ''}`}>
-        <button
-          className="menu-toggle"
-          onClick={() => {
-            initRenderer();
-            setMenuOpen(open => !open);
-          }}
-          title="Open menu (Space)"
-        >
-          ☰
-        </button>
-        <button
-          className={`hud-btn${isFullscreen ? ' active' : ''}`}
-          onClick={toggleFullscreen}
-          title={isFullscreen ? 'Exit fullscreen (F)' : 'Fullscreen (F)'}
-        >
-          {isFullscreen ? '⤡' : '⛶'}
-        </button>
-        {initialized && interval > 0 && (
-          <button
-            className={`hud-btn${isHeld ? ' active' : ''}`}
-            onClick={toggleHold}
-            title="Hold auto-advance (H)"
-          >
-            {isHeld ? '⏸' : '▶'}
-          </button>
-        )}
-        {initialized && activeSource && (
-          <button
-            className={`hud-btn${isMuted ? ' active' : ''}`}
-            onClick={() => setIsMuted(prev => {
-              const next = !prev;
-              audioEngine.setMuted(next);
-              return next;
-            })}
-            title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
-          >
-            {isMuted ? '🔇' : '🔊'}
-          </button>
-        )}
-        {initialized && activePreset && (
-          <div className="hud-now-playing">
-            <span className="hud-preset-name" title={activePreset.name}>
-              {activePreset.name}
-            </span>
-            <button
-              className={`favorite-btn${isFavorite(activePresetId) ? ' active' : ''}`}
-              onClick={() => toggleFavorite(activePresetId)}
-              title={isFavorite(activePresetId) ? 'Remove from favorites' : 'Add to favorites'}
-            >
-              {isFavorite(activePresetId) ? '♥' : '♡'}
-            </button>
-          </div>
-        )}
-        {initialized && activeSource && (
-          <span className="hud-source">{activeSource}</span>
-        )}
-        {initialized && (
-          <span className="hud-fps">{fps} fps</span>
-        )}
-      </div>
+      <BottomBar
+        visible={barShown}
+        initialized={initialized}
+        activePreset={activePreset}
+        activePresetId={activePresetId}
+        activeSource={activeSource}
+        quality={quality}
+        fps={fps}
+        isMuted={isMuted}
+        isHeld={isHeld}
+        isFullscreen={isFullscreen}
+        interval={interval}
+        isFavorite={isFavorite}
+        onToggleFavorite={toggleFavorite}
+        isExcluded={isExcluded}
+        onToggleExclude={toggleExclude}
+        onPrev={goPrev}
+        onNext={goNext}
+        onRandom={goRandom}
+        onToggleMute={() => setIsMuted(prev => {
+          const next = !prev;
+          audioEngine.setMuted(next);
+          return next;
+        })}
+        onToggleFullscreen={toggleFullscreen}
+        onToggleHold={toggleHold}
+        onOpenMenu={() => { initRenderer(); setDrawerOpen(open => !open); setDrawerTab('presets'); }}
+        onToggleKeyGuide={() => setKeyGuideVisible(v => !v)}
+      />
 
-      {menuOpen && (
-        <Menu
-          presets={presets}
-          loadingPresets={loadingPresets}
-          activePresetId={activePresetId}
-          activePresetName={activePreset?.name ?? ''}
-          activeSource={activeSource}
-          quality={quality}
-          graphicsSettings={graphicsSettings}
-          fps={fps}
-          blendTime={blendTime}
-          isFavorite={isFavorite}
-          onToggleFavorite={toggleFavorite}
-          isExcluded={isExcluded}
-          onToggleExclude={toggleExclude}
-          favoritePresets={favoritePresets}
-          excludedCount={excluded.length}
-          playlistMode={playlistMode}
-          onPlaylistModeChange={setPlaylistMode}
-          interval={interval}
-          onIntervalChange={setPlaylistInterval}
-          isHeld={isHeld}
-          onToggleHold={toggleHold}
-          onPrev={goPrev}
-          onNext={goNext}
-          onRandom={goRandom}
-          onSelectPreset={handleSelectPreset}
-          onUploadPreset={uploadMilkPreset}
-          onRemovePreset={removePreset}
-          onSelectSource={handleSelectSource}
-          onSelectFile={handleSelectFile}
-          onQualityChange={handleQualityChange}
-          onSettingsChange={handleSettingsChange}
-          onBlendTimeChange={setBlendTime}
-          onClose={() => setMenuOpen(false)}
-        />
-      )}
+      <KeyGuide
+        visible={keyGuideVisible}
+        onClose={() => setKeyGuideVisible(false)}
+      />
+
+      <Drawer
+        open={drawerOpen}
+        tab={drawerTab}
+        onTabChange={setDrawerTab}
+        onClose={() => setDrawerOpen(false)}
+        presets={presets}
+        loadingPresets={loadingPresets}
+        activePresetId={activePresetId}
+        activeSource={activeSource}
+        quality={quality}
+        graphicsSettings={graphicsSettings}
+        fps={fps}
+        blendTime={blendTime}
+        isFavorite={isFavorite}
+        onToggleFavorite={toggleFavorite}
+        isExcluded={isExcluded}
+        onToggleExclude={toggleExclude}
+        favoritePresets={favoritePresets}
+        excludedCount={excluded.length}
+        playlistMode={playlistMode}
+        onPlaylistModeChange={setPlaylistMode}
+        interval={interval}
+        onIntervalChange={setPlaylistInterval}
+        isHeld={isHeld}
+        onToggleHold={toggleHold}
+        onSelectPreset={handleSelectPreset}
+        onUploadPreset={uploadMilkPreset}
+        onRemovePreset={removePreset}
+        onSelectSource={handleSelectSource}
+        onSelectFile={handleSelectFile}
+        onQualityChange={handleQualityChange}
+        onSettingsChange={handleSettingsChange}
+        onBlendTimeChange={setBlendTime}
+      />
     </div>
   );
 }
