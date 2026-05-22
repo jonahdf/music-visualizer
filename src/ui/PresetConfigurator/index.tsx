@@ -5,6 +5,10 @@ import type { ParamDef, ParamGroup } from './parameterDefs';
 import { DEFAULT_PRESET } from './defaultPreset';
 import { toButterchurnPreset, mergeIntoButterchurnPreset, fromButterchurnPreset } from './presetConvert';
 import { buildAIPrompt } from './aiPromptBuilder';
+import AnimationPanel from './AnimationPanel';
+import type { ModulationMap, ParamModulation } from './animationTypes';
+import { ANIM_PARAM_CONFIGS, defaultModulationMap } from './animationTypes';
+import { generateAnimEquations } from './generateAnimEquations';
 import './PresetConfigurator.css';
 
 interface Props {
@@ -34,8 +38,11 @@ function shortLabel(key: string, label: string): string {
   return label;
 }
 
-const SUB_TABS: { id: ParamGroup; label: string }[] = [
+type SubTabId = ParamGroup | 'animate';
+
+const SUB_TABS: { id: SubTabId; label: string }[] = [
   { id: 'motion', label: 'Motion' },
+  { id: 'animate', label: 'Animate' },
   { id: 'wave', label: 'Wave' },
   { id: 'color', label: 'Color/FX' },
   { id: 'borders', label: 'Borders' },
@@ -183,7 +190,8 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const [baseBcPreset, setBaseBcPreset] = useState<object | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [presetName, setPresetName] = useState('My Custom Preset');
-  const [subTab, setSubTab] = useState<ParamGroup>('motion');
+  const [subTab, setSubTab] = useState<SubTabId>('motion');
+  const [modulations, setModulations] = useState<ModulationMap>(defaultModulationMap);
   const [copied, setCopied] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
@@ -206,6 +214,53 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     setIsDirty(true);
     setPreset(prev => {
       const updated = { ...prev, [key]: value };
+      // If an animated param's base value changed, rebuild the auto-block so the
+      // embedded base number in the equation stays in sync with the slider.
+      const isAnimated = ANIM_PARAM_CONFIGS.some(c => c.key === key);
+      if (isAnimated) {
+        setModulations(currentMods => {
+          const newEq = generateAnimEquations(
+            currentMods,
+            updated,
+            ANIM_PARAM_CONFIGS,
+            String(updated.per_frame_eqs_str ?? ''),
+          );
+          const withEq = { ...updated, per_frame_eqs_str: newEq };
+          onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(withEq, baseBcPreset) : toButterchurnPreset(withEq));
+          // Return unchanged mods — just needed preset access
+          return currentMods;
+        });
+        return updated;
+      }
+      onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(updated, baseBcPreset) : toButterchurnPreset(updated));
+      return updated;
+    });
+  }, [onLivePreviewChange, baseBcPreset]);
+
+  const setModulation = useCallback((key: string, mod: ParamModulation) => {
+    setModulations(prevMods => {
+      const newMods = { ...prevMods, [key]: mod };
+      setPreset(prev => {
+        const newEq = generateAnimEquations(
+          newMods,
+          prev,
+          ANIM_PARAM_CONFIGS,
+          String(prev.per_frame_eqs_str ?? ''),
+        );
+        const updated = { ...prev, per_frame_eqs_str: newEq };
+        onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(updated, baseBcPreset) : toButterchurnPreset(updated));
+        return updated;
+      });
+      return newMods;
+    });
+  }, [onLivePreviewChange, baseBcPreset]);
+
+  const handleClearAllAnimation = useCallback(() => {
+    const cleared = defaultModulationMap();
+    setModulations(cleared);
+    setPreset(prev => {
+      const newEq = generateAnimEquations(cleared, prev, ANIM_PARAM_CONFIGS, String(prev.per_frame_eqs_str ?? ''));
+      const updated = { ...prev, per_frame_eqs_str: newEq };
       onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(updated, baseBcPreset) : toButterchurnPreset(updated));
       return updated;
     });
@@ -223,6 +278,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const handleResetAll = () => {
     setPreset({ ...DEFAULT_PRESET });
     setBaseBcPreset(null);
+    setModulations(defaultModulationMap());
     setIsDirty(false);
     onLivePreviewChange(toButterchurnPreset(DEFAULT_PRESET));
     setConfirmMode(null);
@@ -434,7 +490,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
             </button>
           ))}
         </div>
-        {subTab !== 'code' && (
+        {subTab !== 'code' && subTab !== 'animate' && (
           <div className="cfg-tab-actions">
             <button
               className="cfg-tab-action-btn"
@@ -460,6 +516,23 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
         {subTab === 'motion' && PARAMS_BY_GROUP.motion.map(p => (
           <ParamRow key={p.key} param={p} preset={preset} setParam={setParam} />
         ))}
+
+        {subTab === 'animate' && (() => {
+          const eqStr = String(preset.per_frame_eqs_str ?? '');
+          const autoStart = eqStr.indexOf('// [auto]');
+          const autoEnd = eqStr.indexOf('// [/auto]');
+          const generatedCode = autoStart !== -1 && autoEnd !== -1
+            ? eqStr.slice(autoStart, autoEnd + '// [/auto]'.length)
+            : '';
+          return (
+            <AnimationPanel
+              modulations={modulations}
+              generatedCode={generatedCode}
+              onModulationChange={setModulation}
+              onClearAll={handleClearAllAnimation}
+            />
+          );
+        })()}
 
         {subTab === 'wave' && (
           <>
