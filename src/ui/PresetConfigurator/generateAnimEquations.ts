@@ -4,7 +4,8 @@ import { AUDIO_VAR } from './animationTypes';
 const AUTO_START = '// [auto]';
 const AUTO_END = '// [/auto]';
 
-// fDecay in our UI maps to 'decay' in butterchurn's per-frame namespace
+// butterchurn's frame_eqs_str uses JavaScript with an `a.` variable namespace.
+// UI key → per-frame variable name (all prefixed with `a.` when emitted)
 const PER_FRAME_KEY: Record<string, string> = {
   fDecay: 'decay',
 };
@@ -22,21 +23,23 @@ function buildParamEq(
   const hasOsc = mod.oscAmp !== 0;
   if (!hasAudio && !hasOsc) return null;
 
-  const varName = PER_FRAME_KEY[config.key] ?? config.key;
+  // All identifiers in butterchurn's frame_eqs are accessed via `a.`
+  const varName = `a.${PER_FRAME_KEY[config.key] ?? config.key}`;
   let eq = `${varName} = ${fmt(baseVal)}`;
 
   if (hasAudio) {
-    const audioVar = AUDIO_VAR[mod.audioBand]!;
+    const audioVar = `a.${AUDIO_VAR[mod.audioBand]!}`;
     const sign = mod.audioAmount >= 0 ? '+' : '-';
     eq += ` ${sign} ${fmt(Math.abs(mod.audioAmount))}*${audioVar}`;
   }
 
   if (hasOsc) {
     const angularFreq = (2 * Math.PI) / mod.oscPeriod;
+    // Math.sin — butterchurn frame_eqs are evaluated as JavaScript
     const phaseStr = config.phaseOffset !== 0
-      ? `${fmt(angularFreq)}*time+${fmt(config.phaseOffset)}`
-      : `${fmt(angularFreq)}*time`;
-    eq += ` + ${fmt(mod.oscAmp)}*sin(${phaseStr})`;
+      ? `${fmt(angularFreq)}*a.time+${fmt(config.phaseOffset)}`
+      : `${fmt(angularFreq)}*a.time`;
+    eq += ` + ${fmt(mod.oscAmp)}*Math.sin(${phaseStr})`;
   }
 
   return eq + ';';

@@ -627,7 +627,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
               value={getStr(preset, p.key)}
               onChange={e => setParam(p.key, e.target.value)}
               spellCheck={false}
-              placeholder="// e.g.: zoom = 1.0 + 0.1*bass;"
+              placeholder="// e.g.: a.zoom = 1.0 + 0.1*a.bass_att;"
               rows={5}
             />
           </div>

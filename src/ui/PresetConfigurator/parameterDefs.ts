@@ -282,7 +282,7 @@ export const PARAM_DEFS: ParamDef[] = [
   },
   {
     key: 'per_frame_eqs_str', label: 'Per-Frame Equations', group: 'code', type: 'code', default: '',
-    description: 'Code evaluated every frame. Audio variables: bass, mid, treb, vol, time, fps, frame. Override: zoom, rot, dx, dy, cx, cy, sx, sy, warp, decay, wave_r, wave_g, wave_b.',
+    description: 'JavaScript evaluated every frame. All variables live on the `a` object. Audio: a.bass, a.mid, a.treb, a.vol, a.bass_att, a.mid_att, a.treb_att. Time: a.time, a.fps, a.frame. Motion: a.zoom, a.rot, a.dx, a.dy, a.warp, a.decay. Use Math.sin(), Math.abs() etc.',
   },
   {
     key: 'per_pixel_eqs_str', label: 'Per-Vertex (Warp) Equations', group: 'code', type: 'code', default: '',
