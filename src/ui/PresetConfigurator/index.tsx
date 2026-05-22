@@ -302,6 +302,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   }
 
   const handleResetTab = () => {
+    if (subTab === 'animate') return;
     const updates: Record<string, unknown> = {};
     for (const param of PARAMS_BY_GROUP[subTab]) {
       updates[param.key] = param.default;
@@ -310,6 +311,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   };
 
   const handleRandomizeTab = () => {
+    if (subTab === 'animate') return;
     const updates: Record<string, unknown> = {};
     for (const param of PARAMS_BY_GROUP[subTab]) {
       if (param.type === 'float' || param.type === 'color-channel') {

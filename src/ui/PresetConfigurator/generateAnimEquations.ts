@@ -48,7 +48,6 @@ function injectAutoBlock(existing: string, autoLines: string[]): string {
   if (autoLines.length === 0) {
     if (!hasBlock) return existing;
     // Remove the block
-    const start = existing.indexOf(AUTO_START);
     const end = existing.indexOf(AUTO_END);
     if (end === -1) return existing;
     const after = existing.slice(end + AUTO_END.length).replace(/^\n/, '');
@@ -62,7 +61,6 @@ function injectAutoBlock(existing: string, autoLines: string[]): string {
   }
 
   // Replace existing block
-  const start = existing.indexOf(AUTO_START);
   const end = existing.indexOf(AUTO_END);
   if (end === -1) return block + '\n' + existing;
   const after = existing.slice(end + AUTO_END.length);
