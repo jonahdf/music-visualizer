@@ -192,8 +192,6 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const [presetName, setPresetName] = useState('My Custom Preset');
   const [subTab, setSubTab] = useState<SubTabId>('motion');
   const [modulations, setModulations] = useState<ModulationMap>(defaultModulationMap);
-  // Ref so setParam can read modulations synchronously without nesting state setters
-  const modulationsRef = useRef<ModulationMap>(modulations);
   const [copied, setCopied] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
@@ -203,71 +201,83 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const [confirmMode, setConfirmMode] = useState<'reset' | 'randomize' | null>(null);
   const [confirmChecked, setConfirmChecked] = useState(false);
 
-  const buildBcPreset = useCallback((params: Record<string, unknown>, base: object | null): object => {
+  // Refs give synchronous read access without nesting state setters.
+  // Updated immediately before every matching setPreset / setModulations call.
+  const presetRef = useRef<Record<string, unknown>>({ ...DEFAULT_PRESET });
+  const modulationsRef = useRef<ModulationMap>(modulations);
+  const baseBcPresetRef = useRef<object | null>(null);
+
+  // Helper: build butterchurn preset from current flat params + optional base
+  const toBcPreset = useCallback((params: Record<string, unknown>, base: object | null): object => {
     return base ? mergeIntoButterchurnPreset(params, base) : toButterchurnPreset(params);
   }, []);
 
-  const applyPreset = useCallback((updated: Record<string, unknown>, base: object | null = baseBcPreset) => {
-    setPreset(updated);
-    onLivePreviewChange(base ? mergeIntoButterchurnPreset(updated, base) : toButterchurnPreset(updated));
-  }, [onLivePreviewChange, baseBcPreset]);
+  // Helper: push a flat preset to the renderer (side-effect, never call inside an updater)
+  const pushToRenderer = useCallback((params: Record<string, unknown>, base: object | null) => {
+    onLivePreviewChange(toBcPreset(params, base));
+  }, [onLivePreviewChange, toBcPreset]);
 
+  const buildBcPreset = useCallback((params: Record<string, unknown>, base: object | null): object => {
+    return toBcPreset(params, base);
+  }, [toBcPreset]);
+
+  // Apply a new flat preset (replaces entire state) and push to renderer
+  const applyPreset = useCallback((updated: Record<string, unknown>, base: object | null = baseBcPresetRef.current) => {
+    presetRef.current = updated;
+    setPreset(updated);
+    pushToRenderer(updated, base);
+  }, [pushToRenderer]);
+
+  // Update a single parameter, rebuild the auto-block if it's an animated param, then push
   const setParam = useCallback((key: string, value: unknown) => {
     setIsDirty(true);
-    setPreset(prev => {
-      const updated = { ...prev, [key]: value };
-      // If an animated param's base value changed, rebuild the auto-block using the
-      // ref (avoids nesting a setModulations call inside a setPreset updater).
-      const isAnimated = ANIM_PARAM_CONFIGS.some(c => c.key === key);
-      if (isAnimated) {
-        const newEq = generateAnimEquations(
-          modulationsRef.current,
-          updated,
-          ANIM_PARAM_CONFIGS,
-          String(updated.per_frame_eqs_str ?? ''),
-        );
-        const withEq = { ...updated, per_frame_eqs_str: newEq };
-        onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(withEq, baseBcPreset) : toButterchurnPreset(withEq));
-        return withEq;
-      }
-      onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(updated, baseBcPreset) : toButterchurnPreset(updated));
-      return updated;
-    });
-  }, [onLivePreviewChange, baseBcPreset]);
+    const prev = presetRef.current;
+    const isAnimated = ANIM_PARAM_CONFIGS.some(c => c.key === key);
+    let updated = { ...prev, [key]: value };
+    if (isAnimated) {
+      const newEq = generateAnimEquations(
+        modulationsRef.current, updated, ANIM_PARAM_CONFIGS,
+        String(updated.per_frame_eqs_str ?? ''),
+      );
+      updated = { ...updated, per_frame_eqs_str: newEq };
+    }
+    presetRef.current = updated;
+    setPreset(updated);
+    pushToRenderer(updated, baseBcPresetRef.current);
+  }, [pushToRenderer]);
 
+  // Update one modulation entry, rebuild equations, push to renderer — no nested setters
   const setModulation = useCallback((key: string, mod: ParamModulation) => {
     const newMods = { ...modulationsRef.current, [key]: mod };
     modulationsRef.current = newMods;
     setModulations(newMods);
-    // Update preset separately — never nest setPreset inside setModulations
-    setPreset(prev => {
-      const newEq = generateAnimEquations(
-        newMods,
-        prev,
-        ANIM_PARAM_CONFIGS,
-        String(prev.per_frame_eqs_str ?? ''),
-      );
-      const updated = { ...prev, per_frame_eqs_str: newEq };
-      onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(updated, baseBcPreset) : toButterchurnPreset(updated));
-      return updated;
-    });
-  }, [onLivePreviewChange, baseBcPreset]);
+
+    const prev = presetRef.current;
+    const newEq = generateAnimEquations(newMods, prev, ANIM_PARAM_CONFIGS, String(prev.per_frame_eqs_str ?? ''));
+    const updated = { ...prev, per_frame_eqs_str: newEq };
+    presetRef.current = updated;
+    setPreset(updated);
+    pushToRenderer(updated, baseBcPresetRef.current);
+  }, [pushToRenderer]);
 
   const handleClearAllAnimation = useCallback(() => {
     const cleared = defaultModulationMap();
     modulationsRef.current = cleared;
     setModulations(cleared);
-    setPreset(prev => {
-      const newEq = generateAnimEquations(cleared, prev, ANIM_PARAM_CONFIGS, String(prev.per_frame_eqs_str ?? ''));
-      const updated = { ...prev, per_frame_eqs_str: newEq };
-      onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(updated, baseBcPreset) : toButterchurnPreset(updated));
-      return updated;
-    });
-  }, [onLivePreviewChange, baseBcPreset]);
+
+    const prev = presetRef.current;
+    const newEq = generateAnimEquations(cleared, prev, ANIM_PARAM_CONFIGS, String(prev.per_frame_eqs_str ?? ''));
+    const updated = { ...prev, per_frame_eqs_str: newEq };
+    presetRef.current = updated;
+    setPreset(updated);
+    pushToRenderer(updated, baseBcPresetRef.current);
+  }, [pushToRenderer]);
 
   const handleLoadFromCurrent = () => {
     if (!activePresetData) return;
     const flat = fromButterchurnPreset(activePresetData);
+    presetRef.current = flat;
+    baseBcPresetRef.current = activePresetData;
     setPreset(flat);
     setBaseBcPreset(activePresetData);
     setIsDirty(false);
@@ -275,11 +285,16 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   };
 
   const handleResetAll = () => {
-    setPreset({ ...DEFAULT_PRESET });
+    const defaults = { ...DEFAULT_PRESET };
+    const clearedMods = defaultModulationMap();
+    presetRef.current = defaults;
+    baseBcPresetRef.current = null;
+    modulationsRef.current = clearedMods;
+    setPreset(defaults);
     setBaseBcPreset(null);
-    setModulations(defaultModulationMap());
+    setModulations(clearedMods);
     setIsDirty(false);
-    onLivePreviewChange(toButterchurnPreset(DEFAULT_PRESET));
+    pushToRenderer(defaults, null);
     setConfirmMode(null);
     setConfirmChecked(false);
   };
