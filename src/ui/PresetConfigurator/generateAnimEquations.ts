@@ -1,11 +1,8 @@
 import type { AnimParamConfig, ModulationMap, ParamModulation } from './animationTypes';
 import { AUDIO_VAR } from './animationTypes';
 
-const AUTO_START = '// [auto]';
-const AUTO_END = '// [/auto]';
-
-// butterchurn's frame_eqs_str uses JavaScript with an `a.` variable namespace.
-// UI key → per-frame variable name (all prefixed with `a.` when emitted)
+// butterchurn frame_eqs_str uses JavaScript with an `a.` variable namespace.
+// UI key → per-frame variable name (prefixed with `a.` when emitted)
 const PER_FRAME_KEY: Record<string, string> = {
   fDecay: 'decay',
 };
@@ -23,7 +20,6 @@ function buildParamEq(
   const hasOsc = mod.oscAmp !== 0;
   if (!hasAudio && !hasOsc) return null;
 
-  // All identifiers in butterchurn's frame_eqs are accessed via `a.`
   const varName = `a.${PER_FRAME_KEY[config.key] ?? config.key}`;
   let eq = `${varName} = ${fmt(baseVal)}`;
 
@@ -35,7 +31,6 @@ function buildParamEq(
 
   if (hasOsc) {
     const angularFreq = (2 * Math.PI) / mod.oscPeriod;
-    // Math.sin — butterchurn frame_eqs are evaluated as JavaScript
     const phaseStr = config.phaseOffset !== 0
       ? `${fmt(angularFreq)}*a.time+${fmt(config.phaseOffset)}`
       : `${fmt(angularFreq)}*a.time`;
@@ -45,39 +40,17 @@ function buildParamEq(
   return eq + ';';
 }
 
-function injectAutoBlock(existing: string, autoLines: string[]): string {
-  const hasBlock = existing.includes(AUTO_START);
-
-  if (autoLines.length === 0) {
-    if (!hasBlock) return existing;
-    // Remove the block
-    const end = existing.indexOf(AUTO_END);
-    if (end === -1) return existing;
-    const after = existing.slice(end + AUTO_END.length).replace(/^\n/, '');
-    return after;
-  }
-
-  const block = [AUTO_START, ...autoLines, AUTO_END].join('\n');
-
-  if (!hasBlock) {
-    return existing ? block + '\n' + existing : block;
-  }
-
-  // Replace existing block
-  const end = existing.indexOf(AUTO_END);
-  if (end === -1) return block + '\n' + existing;
-  const after = existing.slice(end + AUTO_END.length);
-  return block + after;
-}
-
-export function generateAnimEquations(
+/**
+ * Returns the auto-generated equation lines as a single string (no comment
+ * markers). Combine with user code in the caller — never store the result
+ * inside per_frame_eqs_str state so the Code tab stays clean.
+ */
+export function buildAutoEquations(
   mods: ModulationMap,
   preset: Record<string, unknown>,
   configs: AnimParamConfig[],
-  currentEqStr: string,
 ): string {
-  const autoLines: string[] = [];
-
+  const lines: string[] = [];
   for (const config of configs) {
     const mod = mods[config.key];
     if (!mod) continue;
@@ -85,8 +58,7 @@ export function generateAnimEquations(
       ? (preset[config.key] as number)
       : 0;
     const eq = buildParamEq(config, mod, baseVal);
-    if (eq) autoLines.push(eq);
+    if (eq) lines.push(eq);
   }
-
-  return injectAutoBlock(currentEqStr, autoLines);
+  return lines.join('\n');
 }

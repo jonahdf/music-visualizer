@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { PARAMS_BY_GROUP, PARAM_BY_KEY } from './parameterDefs';
 import type { ParamDef, ParamGroup } from './parameterDefs';
@@ -8,7 +8,7 @@ import { buildAIPrompt } from './aiPromptBuilder';
 import AnimationPanel from './AnimationPanel';
 import type { ModulationMap, ParamModulation } from './animationTypes';
 import { ANIM_PARAM_CONFIGS, defaultModulationMap } from './animationTypes';
-import { generateAnimEquations } from './generateAnimEquations';
+import { buildAutoEquations } from './generateAnimEquations';
 import './PresetConfigurator.css';
 
 interface Props {
@@ -207,19 +207,28 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const modulationsRef = useRef<ModulationMap>(modulations);
   const baseBcPresetRef = useRef<object | null>(null);
 
-  // Helper: build butterchurn preset from current flat params + optional base
-  const toBcPreset = useCallback((params: Record<string, unknown>, base: object | null): object => {
-    return base ? mergeIntoButterchurnPreset(params, base) : toButterchurnPreset(params);
+  // Combine user's per_frame_eqs with the auto-generated animation equations.
+  // Auto-equations are prepended; user code comes after. No comment markers —
+  // butterchurn's expression parser doesn't support them.
+  const combineEquations = useCallback((params: Record<string, unknown>, mods: ModulationMap): Record<string, unknown> => {
+    const autoEqs = buildAutoEquations(mods, params, ANIM_PARAM_CONFIGS);
+    const userEqs = String(params.per_frame_eqs_str ?? '');
+    const combined = autoEqs && userEqs ? autoEqs + '\n' + userEqs : autoEqs || userEqs;
+    return { ...params, per_frame_eqs_str: combined };
   }, []);
 
   // Helper: push a flat preset to the renderer (side-effect, never call inside an updater)
   const pushToRenderer = useCallback((params: Record<string, unknown>, base: object | null) => {
-    onLivePreviewChange(toBcPreset(params, base));
-  }, [onLivePreviewChange, toBcPreset]);
+    const combined = combineEquations(params, modulationsRef.current);
+    const data = base ? mergeIntoButterchurnPreset(combined, base) : toButterchurnPreset(combined);
+    onLivePreviewChange(data);
+  }, [onLivePreviewChange, combineEquations]);
 
+  // Build butterchurn preset for save/export — bakes auto-equations in
   const buildBcPreset = useCallback((params: Record<string, unknown>, base: object | null): object => {
-    return toBcPreset(params, base);
-  }, [toBcPreset]);
+    const combined = combineEquations(params, modulationsRef.current);
+    return base ? mergeIntoButterchurnPreset(combined, base) : toButterchurnPreset(combined);
+  }, [combineEquations]);
 
   // Apply a new flat preset (replaces entire state) and push to renderer
   const applyPreset = useCallback((updated: Record<string, unknown>, base: object | null = baseBcPresetRef.current) => {
@@ -228,49 +237,29 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     pushToRenderer(updated, base);
   }, [pushToRenderer]);
 
-  // Update a single parameter, rebuild the auto-block if it's an animated param, then push
+  // Update a single parameter and push. Auto-equations are combined in pushToRenderer,
+  // so no special handling is needed for animated params here.
   const setParam = useCallback((key: string, value: unknown) => {
     setIsDirty(true);
-    const prev = presetRef.current;
-    const isAnimated = ANIM_PARAM_CONFIGS.some(c => c.key === key);
-    let updated = { ...prev, [key]: value };
-    if (isAnimated) {
-      const newEq = generateAnimEquations(
-        modulationsRef.current, updated, ANIM_PARAM_CONFIGS,
-        String(updated.per_frame_eqs_str ?? ''),
-      );
-      updated = { ...updated, per_frame_eqs_str: newEq };
-    }
+    const updated = { ...presetRef.current, [key]: value };
     presetRef.current = updated;
     setPreset(updated);
     pushToRenderer(updated, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
-  // Update one modulation entry, rebuild equations, push to renderer — no nested setters
+  // Update one modulation entry and push — no preset state change needed
   const setModulation = useCallback((key: string, mod: ParamModulation) => {
     const newMods = { ...modulationsRef.current, [key]: mod };
     modulationsRef.current = newMods;
     setModulations(newMods);
-
-    const prev = presetRef.current;
-    const newEq = generateAnimEquations(newMods, prev, ANIM_PARAM_CONFIGS, String(prev.per_frame_eqs_str ?? ''));
-    const updated = { ...prev, per_frame_eqs_str: newEq };
-    presetRef.current = updated;
-    setPreset(updated);
-    pushToRenderer(updated, baseBcPresetRef.current);
+    pushToRenderer(presetRef.current, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
   const handleClearAllAnimation = useCallback(() => {
     const cleared = defaultModulationMap();
     modulationsRef.current = cleared;
     setModulations(cleared);
-
-    const prev = presetRef.current;
-    const newEq = generateAnimEquations(cleared, prev, ANIM_PARAM_CONFIGS, String(prev.per_frame_eqs_str ?? ''));
-    const updated = { ...prev, per_frame_eqs_str: newEq };
-    presetRef.current = updated;
-    setPreset(updated);
-    pushToRenderer(updated, baseBcPresetRef.current);
+    pushToRenderer(presetRef.current, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
   const handleLoadFromCurrent = () => {
@@ -298,6 +287,12 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     setConfirmMode(null);
     setConfirmChecked(false);
   };
+
+  // Live preview of auto-equations shown in the Animate tab (no comment markers)
+  const autoEqPreview = useMemo(
+    () => buildAutoEquations(modulations, preset, ANIM_PARAM_CONFIGS),
+    [modulations, preset],
+  );
 
   // Conservative ranges for randomize — avoids extreme values that look broken
   const RAND_RANGE: Record<string, [number, number]> = {
@@ -533,22 +528,14 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
           <ParamRow key={p.key} param={p} preset={preset} setParam={setParam} />
         ))}
 
-        {subTab === 'animate' && (() => {
-          const eqStr = String(preset.per_frame_eqs_str ?? '');
-          const autoStart = eqStr.indexOf('// [auto]');
-          const autoEnd = eqStr.indexOf('// [/auto]');
-          const generatedCode = autoStart !== -1 && autoEnd !== -1
-            ? eqStr.slice(autoStart, autoEnd + '// [/auto]'.length)
-            : '';
-          return (
-            <AnimationPanel
-              modulations={modulations}
-              generatedCode={generatedCode}
-              onModulationChange={setModulation}
-              onClearAll={handleClearAllAnimation}
-            />
-          );
-        })()}
+        {subTab === 'animate' && (
+          <AnimationPanel
+            modulations={modulations}
+            generatedCode={autoEqPreview}
+            onModulationChange={setModulation}
+            onClearAll={handleClearAllAnimation}
+          />
+        )}
 
         {subTab === 'wave' && (
           <>

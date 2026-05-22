@@ -57,8 +57,8 @@ export const DEFAULT_PRESET: Record<string, unknown> = {
   ib_b: 0.0,
   ib_a: 0.0,
 
-  // Code — gentle bass-reactive zoom and warp so the blank canvas feels alive
+  // Code — subtle bass-reactive zoom and warp so the blank canvas feels alive
   per_frame_init_eqs_str: '',
-  per_frame_eqs_str: 'a.zoom = 1.01 + 0.06*a.bass_att;\na.warp = 0.5 + 0.8*a.mid_att;\na.decay = 0.97 + 0.02*a.treb_att;',
+  per_frame_eqs_str: 'a.zoom = 1.005 + 0.02*a.bass_att;\na.warp = 0.5 + 0.3*a.mid_att;',
   per_pixel_eqs_str: '',
 };
