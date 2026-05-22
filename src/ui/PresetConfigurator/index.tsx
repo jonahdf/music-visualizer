@@ -192,6 +192,8 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const [presetName, setPresetName] = useState('My Custom Preset');
   const [subTab, setSubTab] = useState<SubTabId>('motion');
   const [modulations, setModulations] = useState<ModulationMap>(defaultModulationMap);
+  // Ref so setParam can read modulations synchronously without nesting state setters
+  const modulationsRef = useRef<ModulationMap>(modulations);
   const [copied, setCopied] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
@@ -214,23 +216,19 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     setIsDirty(true);
     setPreset(prev => {
       const updated = { ...prev, [key]: value };
-      // If an animated param's base value changed, rebuild the auto-block so the
-      // embedded base number in the equation stays in sync with the slider.
+      // If an animated param's base value changed, rebuild the auto-block using the
+      // ref (avoids nesting a setModulations call inside a setPreset updater).
       const isAnimated = ANIM_PARAM_CONFIGS.some(c => c.key === key);
       if (isAnimated) {
-        setModulations(currentMods => {
-          const newEq = generateAnimEquations(
-            currentMods,
-            updated,
-            ANIM_PARAM_CONFIGS,
-            String(updated.per_frame_eqs_str ?? ''),
-          );
-          const withEq = { ...updated, per_frame_eqs_str: newEq };
-          onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(withEq, baseBcPreset) : toButterchurnPreset(withEq));
-          // Return unchanged mods — just needed preset access
-          return currentMods;
-        });
-        return updated;
+        const newEq = generateAnimEquations(
+          modulationsRef.current,
+          updated,
+          ANIM_PARAM_CONFIGS,
+          String(updated.per_frame_eqs_str ?? ''),
+        );
+        const withEq = { ...updated, per_frame_eqs_str: newEq };
+        onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(withEq, baseBcPreset) : toButterchurnPreset(withEq));
+        return withEq;
       }
       onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(updated, baseBcPreset) : toButterchurnPreset(updated));
       return updated;
@@ -238,25 +236,26 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   }, [onLivePreviewChange, baseBcPreset]);
 
   const setModulation = useCallback((key: string, mod: ParamModulation) => {
-    setModulations(prevMods => {
-      const newMods = { ...prevMods, [key]: mod };
-      setPreset(prev => {
-        const newEq = generateAnimEquations(
-          newMods,
-          prev,
-          ANIM_PARAM_CONFIGS,
-          String(prev.per_frame_eqs_str ?? ''),
-        );
-        const updated = { ...prev, per_frame_eqs_str: newEq };
-        onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(updated, baseBcPreset) : toButterchurnPreset(updated));
-        return updated;
-      });
-      return newMods;
+    const newMods = { ...modulationsRef.current, [key]: mod };
+    modulationsRef.current = newMods;
+    setModulations(newMods);
+    // Update preset separately — never nest setPreset inside setModulations
+    setPreset(prev => {
+      const newEq = generateAnimEquations(
+        newMods,
+        prev,
+        ANIM_PARAM_CONFIGS,
+        String(prev.per_frame_eqs_str ?? ''),
+      );
+      const updated = { ...prev, per_frame_eqs_str: newEq };
+      onLivePreviewChange(baseBcPreset ? mergeIntoButterchurnPreset(updated, baseBcPreset) : toButterchurnPreset(updated));
+      return updated;
     });
   }, [onLivePreviewChange, baseBcPreset]);
 
   const handleClearAllAnimation = useCallback(() => {
     const cleared = defaultModulationMap();
+    modulationsRef.current = cleared;
     setModulations(cleared);
     setPreset(prev => {
       const newEq = generateAnimEquations(cleared, prev, ANIM_PARAM_CONFIGS, String(prev.per_frame_eqs_str ?? ''));
