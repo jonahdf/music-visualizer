@@ -27,7 +27,12 @@ export class ButterchurnRenderer {
 
   loadPreset(preset: object, blendSeconds = 2.7) {
     if (!this.visualizer) return;
-    this.visualizer.loadPreset(preset, blendSeconds);
+    try {
+      this.visualizer.loadPreset(preset, blendSeconds);
+    } catch {
+      // Malformed per-frame equations or other preset parse errors must not
+      // propagate into React's state update machinery.
+    }
   }
 
   getCurrentPresetName() {

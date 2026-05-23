@@ -8,6 +8,8 @@ import { SAMPLE_TRACKS } from './audio/sampleTracks';
 import { ButterchurnRenderer } from './visualizer/ButterchurnRenderer';
 import { usePresets } from './presets/usePresets';
 import type { PresetEntry } from './presets/usePresets';
+import { savePreset } from './presets/PresetStore';
+import type { SavedPreset } from './types';
 import { usePlaylist } from './presets/usePlaylist';
 import BottomBar from './ui/BottomBar';
 import Drawer from './ui/Drawer';
@@ -15,10 +17,15 @@ import type { DrawerTab } from './ui/Drawer';
 import KeyGuide from './ui/KeyGuide';
 import NowPlayingHUD from './ui/NowPlayingHUD';
 import { GRAPHICS_PRESETS } from './types';
+import { DEFAULT_PRESET } from './ui/PresetConfigurator/defaultPreset';
+import { toButterchurnPreset } from './ui/PresetConfigurator/presetConvert';
 import type { AudioSourceType, QualityLevel, GraphicsSettings, SampleTrack } from './types';
 import './App.css';
 
 const INTERVALS = [0, 15000, 30000, 60000, 300000];
+const DRAWER_WIDTH_DEFAULT = 340;
+const DRAWER_WIDTH_MIN = 240;
+const DRAWER_WIDTH_MAX = 560;
 
 function readQuality(): QualityLevel {
   const raw = localStorage.getItem('mv_quality');
@@ -49,6 +56,8 @@ export default function App() {
   const fpsCounterRef = useRef({ frames: 0, lastTime: performance.now() });
 
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerWidth, setDrawerWidth] = useState(DRAWER_WIDTH_DEFAULT);
+  const [isResizingDrawer, setIsResizingDrawer] = useState(false);
   const [drawerTab, setDrawerTab] = useState<DrawerTab>('presets');
   const [keyGuideVisible, setKeyGuideVisible] = useState(false);
   const [activeSource, setActiveSource] = useState<AudioSourceType | null>(null);
@@ -71,7 +80,7 @@ export default function App() {
   const [barVisible, setBarVisible] = useState(true);
   const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { presets, loading: loadingPresets, uploadMilkPreset, removePreset } = usePresets();
+  const { presets, loading: loadingPresets, uploadMilkPreset, removePreset, reload: reloadPresets } = usePresets();
 
   const {
     favorites,
@@ -132,15 +141,44 @@ export default function App() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Handle window resize
+  // Handle window resize (accounts for open drawer)
   useEffect(() => {
     const onResize = () => {
-      if (!rendererRef.current || !canvasRef.current) return;
-      rendererRef.current.resize(window.innerWidth, window.innerHeight, graphicsSettings);
+      if (!rendererRef.current) return;
+      const w = window.innerWidth - (drawerOpen ? drawerWidth : 0);
+      rendererRef.current.resize(w, window.innerHeight, graphicsSettings);
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [graphicsSettings]);
+  }, [graphicsSettings, drawerOpen, drawerWidth]);
+
+  // Resize canvas when drawer opens or closes
+  useEffect(() => {
+    if (!initialized || !rendererRef.current) return;
+    const w = window.innerWidth - (drawerOpen ? drawerWidth : 0);
+    rendererRef.current.resize(w, window.innerHeight, graphicsSettings);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerOpen, drawerWidth, initialized]);
+
+  const handleDrawerResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = drawerWidth;
+    setIsResizingDrawer(true);
+
+    const onMove = (ev: MouseEvent) => {
+      const newWidth = Math.max(DRAWER_WIDTH_MIN, Math.min(DRAWER_WIDTH_MAX, startWidth + ev.clientX - startX));
+      setDrawerWidth(newWidth);
+      rendererRef.current?.resize(window.innerWidth - newWidth, window.innerHeight, graphicsSettings);
+    };
+    const onUp = () => {
+      setIsResizingDrawer(false);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [drawerWidth, graphicsSettings]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen();
@@ -153,14 +191,13 @@ export default function App() {
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
-  // Auto-load first preset once ready
+  // Auto-load bare default preset on first init
   useEffect(() => {
-    if (!initialized || presets.length === 0 || activePresetId) return;
-    const first = presets[0];
-    rendererRef.current?.loadPreset(first.data, blendTime);
-    rendererRef.current?.setCurrentPresetName(first.name);
-    setActivePresetId(first.id);
-  }, [initialized, presets, activePresetId, blendTime]);
+    if (!initialized || activePresetId) return;
+    rendererRef.current?.loadPreset(toButterchurnPreset(DEFAULT_PRESET), 0);
+    rendererRef.current?.setCurrentPresetName('Default');
+    setActivePresetId('default');
+  }, [initialized, activePresetId]);
 
   const handleSelectPreset = useCallback((preset: PresetEntry) => {
     if (!initialized) return;
@@ -380,6 +417,19 @@ export default function App() {
     });
   }, []);
 
+  const handleLivePreviewChange = useCallback((data: object) => {
+    rendererRef.current?.loadPreset(data, 0);
+  }, []);
+
+  const handleSaveCustomPreset = useCallback(async (name: string, data: object) => {
+    const id = `custom:${Date.now()}:${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const preset: SavedPreset = { id, name, source: 'custom', data, createdAt: Date.now() };
+    await savePreset(preset);
+    await reloadPresets();
+    rendererRef.current?.setCurrentPresetName(name);
+    setActivePresetId(id);
+  }, [reloadPresets]);
+
   const handleCanvasClick = useCallback(async () => {
     if (!initialized) await initRenderer();
   }, [initialized, initRenderer]);
@@ -408,8 +458,15 @@ export default function App() {
   const barShown = barVisible || drawerOpen || keyGuideVisible;
   const activePreset = presets.find(p => p.id === activePresetId) ?? null;
 
+  const appStyle = drawerOpen
+    ? { '--drawer-width': `${drawerWidth}px` } as React.CSSProperties
+    : undefined;
+
   return (
-    <div className={`app${!barShown ? ' cursor-hidden' : ''}`}>
+    <div
+      className={`app${!barShown ? ' cursor-hidden' : ''}${drawerOpen ? ' app--drawer-open' : ''}${isResizingDrawer ? ' app--resizing' : ''}`}
+      style={appStyle}
+    >
       <canvas
         ref={canvasRef}
         className="visualizer-canvas"
@@ -486,6 +543,8 @@ export default function App() {
 
       <Drawer
         open={drawerOpen}
+        drawerWidth={drawerWidth}
+        onResizeStart={handleDrawerResizeStart}
         tab={drawerTab}
         onTabChange={setDrawerTab}
         onClose={() => setDrawerOpen(false)}
@@ -521,6 +580,9 @@ export default function App() {
         onQualityChange={handleQualityChange}
         onSettingsChange={handleSettingsChange}
         onBlendTimeChange={setBlendTime}
+        activePresetData={activePreset?.data ?? null}
+        onLivePreviewChange={handleLivePreviewChange}
+        onSaveCustomPreset={handleSaveCustomPreset}
       />
     </div>
   );

@@ -3,8 +3,9 @@ import type { AudioSourceType, QualityLevel, GraphicsSettings, SampleTrack } fro
 import PresetBrowser from '../PresetBrowser';
 import AudioSourcePicker from '../AudioSourcePicker';
 import GraphicsPanel from '../GraphicsPanel';
+import PresetConfigurator from '../PresetConfigurator';
 
-export type DrawerTab = 'presets' | 'audio' | 'settings';
+export type DrawerTab = 'presets' | 'audio' | 'settings' | 'create';
 
 const INTERVAL_OPTIONS = [
   { label: 'Off', value: 0 },
@@ -16,6 +17,8 @@ const INTERVAL_OPTIONS = [
 
 interface Props {
   open: boolean;
+  drawerWidth?: number;
+  onResizeStart?: (e: React.MouseEvent) => void;
   tab: DrawerTab;
   onTabChange: (tab: DrawerTab) => void;
   onClose: () => void;
@@ -51,10 +54,15 @@ interface Props {
   onQualityChange: (q: QualityLevel) => void;
   onSettingsChange: (s: Partial<GraphicsSettings>) => void;
   onBlendTimeChange: (t: number) => void;
+  activePresetData: object | null;
+  onLivePreviewChange: (data: object) => void;
+  onSaveCustomPreset: (name: string, data: object) => Promise<void>;
 }
 
 export default function Drawer({
   open,
+  drawerWidth,
+  onResizeStart,
   tab,
   onTabChange,
   onClose,
@@ -90,9 +98,18 @@ export default function Drawer({
   onQualityChange,
   onSettingsChange,
   onBlendTimeChange,
+  activePresetData,
+  onLivePreviewChange,
+  onSaveCustomPreset,
 }: Props) {
   return (
-    <div className={`drawer${open ? ' drawer-open' : ''}`}>
+    <div
+      className={`drawer${open ? ' drawer-open' : ''}`}
+      style={drawerWidth ? { width: drawerWidth } : undefined}
+    >
+      {onResizeStart && (
+        <div className="drawer-resize-handle" onMouseDown={onResizeStart} />
+      )}
       <div className="drawer-header">
         <div className="drawer-tabs">
           <button
@@ -113,11 +130,17 @@ export default function Drawer({
           >
             Settings
           </button>
+          <button
+            className={`drawer-tab${tab === 'create' ? ' active' : ''}`}
+            onClick={() => onTabChange('create')}
+          >
+            Create
+          </button>
         </div>
         <button className="drawer-close" onClick={onClose}>✕</button>
       </div>
 
-      <div className="drawer-body">
+      <div className={`drawer-body${tab === 'create' ? ' drawer-body-fill' : ''}`}>
         {tab === 'presets' && (
           <PresetBrowser
             presets={presets}
@@ -198,6 +221,14 @@ export default function Drawer({
               onBlendTimeChange={onBlendTimeChange}
             />
           </div>
+        )}
+
+        {tab === 'create' && (
+          <PresetConfigurator
+            activePresetData={activePresetData}
+            onLivePreviewChange={onLivePreviewChange}
+            onSaveCustomPreset={onSaveCustomPreset}
+          />
         )}
       </div>
     </div>
