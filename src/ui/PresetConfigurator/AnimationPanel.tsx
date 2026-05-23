@@ -151,7 +151,7 @@ export default function AnimationPanel({
 
       {generatedCode && (
         <div className="cfg-anim-eq-preview-wrap">
-          <div className="cfg-anim-eq-label">Generated equations (visible in Code tab)</div>
+          <div className="cfg-anim-eq-label">Generated equations (shown in Code tab → Per-Frame)</div>
           <pre className="cfg-anim-eq-preview">{generatedCode}</pre>
         </div>
       )}

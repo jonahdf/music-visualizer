@@ -9,6 +9,7 @@ import AnimationPanel from './AnimationPanel';
 import type { ModulationMap, ParamModulation } from './animationTypes';
 import { ANIM_PARAM_CONFIGS, defaultModulationMap } from './animationTypes';
 import { buildAutoEquations } from './generateAnimEquations';
+import { buildSliderCode } from './generateSliderCode';
 import './PresetConfigurator.css';
 
 interface Props {
@@ -292,6 +293,18 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const autoEqPreview = useMemo(
     () => buildAutoEquations(modulations, preset, ANIM_PARAM_CONFIGS),
     [modulations, preset],
+  );
+
+  // Per-frame assignments generated from slider values (read-only Code tab display)
+  const sliderCode = useMemo(
+    () => buildSliderCode(preset, DEFAULT_PRESET),
+    [preset],
+  );
+
+  // Full generated block: slider assignments + animation modulation equations
+  const fullGeneratedCode = useMemo(
+    () => [sliderCode, autoEqPreview].filter(Boolean).join('\n'),
+    [sliderCode, autoEqPreview],
   );
 
   // Conservative ranges for randomize — avoids extreme values that look broken
@@ -602,23 +615,60 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
           </>
         )}
 
-        {subTab === 'code' && PARAMS_BY_GROUP.code.map(p => (
-          <div key={p.key} className="cfg-code-field">
-            <div className="cfg-code-label">
-              <span>{p.label}</span>
-              <button className="cfg-code-clear" onClick={() => setParam(p.key, '')} title="Clear">✕</button>
+        {subTab === 'code' && PARAMS_BY_GROUP.code.map(p => {
+          if (p.key === 'per_frame_eqs_str') {
+            return (
+              <div key={p.key} className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>{p.label}</span>
+                  <button className="cfg-code-clear" onClick={() => setParam(p.key, '')} title="Clear custom code">✕</button>
+                </div>
+                <p className="cfg-code-desc">{p.description}</p>
+                {fullGeneratedCode && (
+                  <div className="cfg-generated-block">
+                    <div className="cfg-generated-header">
+                      <span className="cfg-generated-title">Generated from UI controls</span>
+                      <span className="cfg-generated-hint">read-only · adjust sliders to change</span>
+                    </div>
+                    <textarea
+                      className="cfg-code-editor cfg-code-generated"
+                      value={fullGeneratedCode}
+                      readOnly
+                      rows={Math.min(fullGeneratedCode.split('\n').length + 1, 12)}
+                      spellCheck={false}
+                    />
+                  </div>
+                )}
+                <div className="cfg-code-custom-label">Custom code</div>
+                <textarea
+                  className="cfg-code-editor"
+                  value={getStr(preset, p.key)}
+                  onChange={e => setParam(p.key, e.target.value)}
+                  spellCheck={false}
+                  placeholder="a.zoom = 1.0 + 0.1*a.bass_att;"
+                  rows={5}
+                />
+              </div>
+            );
+          }
+          return (
+            <div key={p.key} className="cfg-code-field">
+              <div className="cfg-code-label">
+                <span>{p.label}</span>
+                <button className="cfg-code-clear" onClick={() => setParam(p.key, '')} title="Clear">✕</button>
+              </div>
+              <p className="cfg-code-desc">{p.description}</p>
+              <textarea
+                className="cfg-code-editor"
+                value={getStr(preset, p.key)}
+                onChange={e => setParam(p.key, e.target.value)}
+                spellCheck={false}
+                placeholder="a.zoom = 1.0 + 0.1*a.bass_att;"
+                rows={5}
+              />
             </div>
-            <p className="cfg-code-desc">{p.description}</p>
-            <textarea
-              className="cfg-code-editor"
-              value={getStr(preset, p.key)}
-              onChange={e => setParam(p.key, e.target.value)}
-              spellCheck={false}
-              placeholder="// e.g.: a.zoom = 1.0 + 0.1*a.bass_att;"
-              rows={5}
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* AI Assist */}
