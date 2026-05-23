@@ -9,7 +9,7 @@ import AnimationPanel from './AnimationPanel';
 import type { ModulationMap, ParamModulation } from './animationTypes';
 import { ANIM_PARAM_CONFIGS, defaultModulationMap } from './animationTypes';
 import { buildAutoEquations } from './generateAnimEquations';
-import { serializeBaseVals, parseBaseVals, hasEelSyntax } from './generateSliderCode';
+import { serializeBaseVals, parseBaseVals, hasEelSyntax, buildSliderOverrides } from './generateSliderCode';
 import type { WaveState } from './waveTypes';
 import { defaultWaves } from './waveTypes';
 import WaveEditor from './WaveEditor';
@@ -105,6 +105,7 @@ interface ParamRowProps {
 
 function ParamRow({ param, preset, setParam, compact }: ParamRowProps) {
   const [showDesc, setShowDesc] = useState(false);
+  const [editVal, setEditVal] = useState<string | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
   if (param.type === 'code') return null;
@@ -160,12 +161,41 @@ function ParamRow({ param, preset, setParam, compact }: ParamRowProps) {
     ? numValue.toFixed(decimals)
     : '—';
 
+  const commitEdit = (raw: string) => {
+    const n = parseFloat(raw);
+    if (!isNaN(n)) {
+      const clamped = Math.max(min, Math.min(max, n));
+      setParam(param.key, clamped);
+    }
+    setEditVal(null);
+  };
+
   return (
     <div className={`cfg-param-row${compact ? ' compact' : ''}`}>
       <div className="cfg-param-header">
         <label className="cfg-param-label">{compact ? shortLabel(param.key, param.label) : param.label}</label>
         <div className="cfg-param-right">
-          <span className="cfg-param-value">{displayValue}</span>
+          {editVal !== null ? (
+            <input
+              className="cfg-param-value-input"
+              type="text"
+              value={editVal}
+              onChange={e => setEditVal(e.target.value)}
+              onBlur={e => commitEdit(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                if (e.key === 'Escape') setEditVal(null);
+              }}
+              autoFocus
+              onFocus={e => e.target.select()}
+            />
+          ) : (
+            <span
+              className="cfg-param-value"
+              onClick={() => setEditVal(displayValue)}
+              title="Click to edit"
+            >{displayValue}</span>
+          )}
           {!compact && (
             <>
               <button ref={btnRef} className="cfg-desc-btn" onClick={toggleDesc} title="About">?</button>
@@ -214,14 +244,17 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const baseBcPresetRef = useRef<object | null>(null);
   const wavesRef = useRef<WaveState[]>(defaultWaves());
 
-  // Combine user's per_frame_eqs with the auto-generated animation equations.
-  // Auto-equations are prepended; user code comes after. No comment markers —
-  // butterchurn's expression parser doesn't support them.
+  // Combine per-frame equations in priority order (lower = overrides higher):
+  //   1. user's per_frame_eqs_str  (loaded preset equations, base user code)
+  //   2. slider overrides          (static a.var = X; for non-animated params)
+  //   3. animation equations       (highest priority — always win)
+  // No comment markers — butterchurn's expression parser doesn't support them.
   const combineEquations = useCallback((params: Record<string, unknown>, mods: ModulationMap): Record<string, unknown> => {
-    const autoEqs = buildAutoEquations(mods, params, ANIM_PARAM_CONFIGS);
     const userEqs = String(params.per_frame_eqs_str ?? '');
-    const combined = autoEqs && userEqs ? autoEqs + '\n' + userEqs : autoEqs || userEqs;
-    return { ...params, per_frame_eqs_str: combined };
+    const sliderOverrides = buildSliderOverrides(params, mods, ANIM_PARAM_CONFIGS);
+    const autoEqs = buildAutoEquations(mods, params, ANIM_PARAM_CONFIGS);
+    const parts = [userEqs, sliderOverrides, autoEqs].filter(Boolean);
+    return { ...params, per_frame_eqs_str: parts.join('\n') };
   }, []);
 
   // Helper: push a flat preset to the renderer (side-effect, never call inside an updater)
@@ -687,6 +720,8 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
                 <p className="cfg-code-desc">
                   All slider parameters as butterchurn <code className="cfg-inline-code">baseVals</code> key=value pairs.
                   Edit here to update sliders, or move sliders to update this.
+                  Slider values for motion/wave/color params are also injected as per-frame overrides,
+                  so they take effect even when a loaded preset has its own equations.
                 </p>
                 <textarea
                   className="cfg-code-editor cfg-baseval-editor"
