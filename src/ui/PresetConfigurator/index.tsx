@@ -9,10 +9,10 @@ import AnimationPanel from './AnimationPanel';
 import type { ModulationMap, ParamModulation } from './animationTypes';
 import { ANIM_PARAM_CONFIGS, defaultModulationMap } from './animationTypes';
 import { buildAutoEquations } from './generateAnimEquations';
-import {
-  TO_PERFRAME, SKIP_PERFRAME, fmtVal,
-  upsertCodeLine, removeSimpleLiteral, parseCodeSliders,
-} from './generateSliderCode';
+import { serializeBaseVals, parseBaseVals, hasEelSyntax } from './generateSliderCode';
+import type { WaveState } from './waveTypes';
+import { defaultWaves } from './waveTypes';
+import WaveEditor from './WaveEditor';
 import './PresetConfigurator.css';
 
 interface Props {
@@ -196,6 +196,8 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const [presetName, setPresetName] = useState('My Custom Preset');
   const [subTab, setSubTab] = useState<SubTabId>('motion');
   const [modulations, setModulations] = useState<ModulationMap>(defaultModulationMap);
+  const [waves, setWaves] = useState<WaveState[]>(defaultWaves);
+  const [baseValsText, setBaseValsText] = useState<string>(() => serializeBaseVals(DEFAULT_PRESET));
   const [copied, setCopied] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
@@ -210,6 +212,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const presetRef = useRef<Record<string, unknown>>({ ...DEFAULT_PRESET });
   const modulationsRef = useRef<ModulationMap>(modulations);
   const baseBcPresetRef = useRef<object | null>(null);
+  const wavesRef = useRef<WaveState[]>(defaultWaves());
 
   // Combine user's per_frame_eqs with the auto-generated animation equations.
   // Auto-equations are prepended; user code comes after. No comment markers —
@@ -222,147 +225,101 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   }, []);
 
   // Helper: push a flat preset to the renderer (side-effect, never call inside an updater)
-  const pushToRenderer = useCallback((params: Record<string, unknown>, base: object | null) => {
+  const pushToRenderer = useCallback((params: Record<string, unknown>, base: object | null, wvs?: WaveState[]) => {
     const combined = combineEquations(params, modulationsRef.current);
-    const data = base ? mergeIntoButterchurnPreset(combined, base) : toButterchurnPreset(combined);
+    const waveArr = wvs ?? wavesRef.current;
+    const data = base ? mergeIntoButterchurnPreset(combined, base, waveArr) : toButterchurnPreset(combined, waveArr);
     onLivePreviewChange(data);
   }, [onLivePreviewChange, combineEquations]);
 
   // Build butterchurn preset for save/export — bakes auto-equations in
-  const buildBcPreset = useCallback((params: Record<string, unknown>, base: object | null): object => {
+  const buildBcPreset = useCallback((params: Record<string, unknown>, base: object | null, wvs?: WaveState[]): object => {
     const combined = combineEquations(params, modulationsRef.current);
-    return base ? mergeIntoButterchurnPreset(combined, base) : toButterchurnPreset(combined);
+    const waveArr = wvs ?? wavesRef.current;
+    return base ? mergeIntoButterchurnPreset(combined, base, waveArr) : toButterchurnPreset(combined, waveArr);
   }, [combineEquations]);
 
   // Apply a new flat preset (replaces entire state) and push to renderer
   const applyPreset = useCallback((updated: Record<string, unknown>, base: object | null = baseBcPresetRef.current) => {
     presetRef.current = updated;
     setPreset(updated);
+    setBaseValsText(serializeBaseVals(updated));
     pushToRenderer(updated, base);
   }, [pushToRenderer]);
 
-  // Update a single non-code parameter. For slider params, also upserts a simple
-  // literal in per_frame_eqs_str so the Code tab reflects the change.
+  // Update a single non-code parameter. Syncs the Base Values textarea.
   const setParam = useCallback((key: string, value: unknown) => {
     setIsDirty(true);
-    let updated = { ...presetRef.current, [key]: value };
-
-    const param = PARAM_BY_KEY[key];
-    if (param && param.type !== 'code' && typeof value === 'number' && !SKIP_PERFRAME.has(key)) {
-      const mod = modulationsRef.current[key];
-      const isAnimated = mod ? (mod.audioBand !== 'none' || mod.oscAmp !== 0) : false;
-      if (!isAnimated) {
-        const varName = TO_PERFRAME[key] ?? key;
-        const currentCode = String(updated.per_frame_eqs_str ?? '');
-        const newCode = upsertCodeLine(currentCode, varName, fmtVal(value, param));
-        if (newCode !== currentCode) updated = { ...updated, per_frame_eqs_str: newCode };
-      }
-    }
-
+    const updated = { ...presetRef.current, [key]: value };
     presetRef.current = updated;
     setPreset(updated);
+    setBaseValsText(serializeBaseVals(updated));
     pushToRenderer(updated, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
-  // Handle code textarea changes. Parses simple `a.var = number;` literals back
-  // to slider state so moving the slider and editing the code stay in sync.
+  // Handle code textarea changes (init, per-frame, per-vertex, warp, comp).
   const handleCodeChange = useCallback((key: string, code: string) => {
     setIsDirty(true);
-    let updated = { ...presetRef.current, [key]: code };
-
-    if (key === 'per_frame_eqs_str') {
-      const parsed = parseCodeSliders(code);
-      for (const [uiKey, numVal] of Object.entries(parsed)) {
-        const p = PARAM_BY_KEY[uiKey];
-        if (p && p.type !== 'code') {
-          const clamped = p.min !== undefined && p.max !== undefined
-            ? Math.max(p.min, Math.min(p.max, numVal))
-            : numVal;
-          updated[uiKey] = clamped;
-        }
-      }
-    }
-
+    const updated = { ...presetRef.current, [key]: code };
     presetRef.current = updated;
     setPreset(updated);
     pushToRenderer(updated, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
-  // Update one modulation entry. Syncs code: removes static literal when animation
-  // turns on (so it doesn't override the animation equation), re-injects it when off.
-  const setModulation = useCallback((key: string, mod: ParamModulation) => {
-    const oldMod = modulationsRef.current[key];
-    const wasActive = oldMod ? (oldMod.audioBand !== 'none' || oldMod.oscAmp !== 0) : false;
-    const isNowActive = mod.audioBand !== 'none' || mod.oscAmp !== 0;
+  // Handle Base Values textarea edits — parse and sync back to sliders.
+  const handleBaseValsChange = useCallback((text: string) => {
+    setIsDirty(true);
+    setBaseValsText(text);
+    const parsed = parseBaseVals(text);
+    const updated = { ...presetRef.current };
+    for (const [uiKey, numVal] of Object.entries(parsed)) {
+      const p = PARAM_BY_KEY[uiKey];
+      if (p && p.type !== 'code') {
+        const clamped = p.min !== undefined && p.max !== undefined
+          ? Math.max(p.min, Math.min(p.max, numVal))
+          : numVal;
+        updated[uiKey] = clamped;
+      }
+    }
+    presetRef.current = updated;
+    setPreset(updated);
+    pushToRenderer(updated, baseBcPresetRef.current);
+  }, [pushToRenderer]);
 
+  // Update one modulation entry.
+  const setModulation = useCallback((key: string, mod: ParamModulation) => {
     const newMods = { ...modulationsRef.current, [key]: mod };
     modulationsRef.current = newMods;
     setModulations(newMods);
-
-    if (wasActive !== isNowActive) {
-      const varName = TO_PERFRAME[key] ?? key;
-      const currentCode = String(presetRef.current.per_frame_eqs_str ?? '');
-      let newCode = currentCode;
-
-      if (isNowActive) {
-        newCode = removeSimpleLiteral(currentCode, varName);
-      } else {
-        const param = PARAM_BY_KEY[key];
-        if (param) {
-          const val = typeof presetRef.current[key] === 'number' ? presetRef.current[key] as number : 0;
-          newCode = upsertCodeLine(currentCode, varName, fmtVal(val, param));
-        }
-      }
-
-      if (newCode !== currentCode) {
-        const updated = { ...presetRef.current, per_frame_eqs_str: newCode };
-        presetRef.current = updated;
-        setPreset(updated);
-      }
-    }
-
     pushToRenderer(presetRef.current, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
   const handleClearAllAnimation = useCallback(() => {
-    const previousMods = modulationsRef.current;
     const cleared = defaultModulationMap();
     modulationsRef.current = cleared;
     setModulations(cleared);
+    pushToRenderer(presetRef.current, baseBcPresetRef.current);
+  }, [pushToRenderer]);
 
-    let currentCode = String(presetRef.current.per_frame_eqs_str ?? '');
-    let changed = false;
-
-    for (const cfg of ANIM_PARAM_CONFIGS) {
-      const oldMod = previousMods[cfg.key];
-      if (oldMod && (oldMod.audioBand !== 'none' || oldMod.oscAmp !== 0)) {
-        const param = PARAM_BY_KEY[cfg.key];
-        if (param) {
-          const val = typeof presetRef.current[cfg.key] === 'number' ? presetRef.current[cfg.key] as number : 0;
-          const varName = TO_PERFRAME[cfg.key] ?? cfg.key;
-          const next = upsertCodeLine(currentCode, varName, fmtVal(val, param));
-          if (next !== currentCode) { currentCode = next; changed = true; }
-        }
-      }
-    }
-
-    if (changed) {
-      const updated = { ...presetRef.current, per_frame_eqs_str: currentCode };
-      presetRef.current = updated;
-      setPreset(updated);
-      pushToRenderer(updated, baseBcPresetRef.current);
-    } else {
-      pushToRenderer(presetRef.current, baseBcPresetRef.current);
-    }
+  // Handle changes to a specific wave in the Code tab.
+  const handleWaveChange = useCallback((index: number, wave: WaveState) => {
+    const newWaves = [...wavesRef.current];
+    newWaves[index] = wave;
+    wavesRef.current = newWaves;
+    setWaves(newWaves);
+    pushToRenderer(presetRef.current, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
   const handleLoadFromCurrent = () => {
     if (!activePresetData) return;
-    const flat = fromButterchurnPreset(activePresetData);
+    const { flat, waves: loadedWaves } = fromButterchurnPreset(activePresetData);
     presetRef.current = flat;
     baseBcPresetRef.current = activePresetData;
+    wavesRef.current = loadedWaves;
     setPreset(flat);
     setBaseBcPreset(activePresetData);
+    setWaves(loadedWaves);
+    setBaseValsText(serializeBaseVals(flat));
     setIsDirty(false);
     onLivePreviewChange(activePresetData);
   };
@@ -370,14 +327,18 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const handleResetAll = () => {
     const defaults = { ...DEFAULT_PRESET };
     const clearedMods = defaultModulationMap();
+    const resetWaves = defaultWaves();
     presetRef.current = defaults;
     baseBcPresetRef.current = null;
     modulationsRef.current = clearedMods;
+    wavesRef.current = resetWaves;
     setPreset(defaults);
     setBaseBcPreset(null);
     setModulations(clearedMods);
+    setWaves(resetWaves);
+    setBaseValsText(serializeBaseVals(defaults));
     setIsDirty(false);
-    pushToRenderer(defaults, null);
+    pushToRenderer(defaults, null, resetWaves);
     setConfirmMode(null);
     setConfirmChecked(false);
   };
@@ -484,6 +445,17 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
       return;
     }
 
+    // Butterchurn native format (has baseVals key) — extract flat params + waves
+    if ('baseVals' in parsed) {
+      const { flat, waves: loadedWaves } = fromButterchurnPreset(parsed as object);
+      wavesRef.current = loadedWaves;
+      setWaves(loadedWaves);
+      setShowImport(false);
+      setImportText('');
+      applyPreset(flat);
+      return;
+    }
+
     let updatedPreset: Record<string, unknown>;
     if (importReplace) {
       updatedPreset = { ...DEFAULT_PRESET, ...parsed };
@@ -493,7 +465,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
         if (PARAM_BY_KEY[key]) updates[key] = parsed[key];
       }
       if (Object.keys(updates).length === 0) {
-        setImportError('No recognized preset parameters found. Check "Replace entirely" to import a full preset JSON.');
+        setImportError('No recognized preset parameters found. Check "Replace entirely" to import a full preset JSON, or paste a butterchurn JSON with a "baseVals" key.');
         return;
       }
       updatedPreset = { ...preset, ...updates };
@@ -698,15 +670,49 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
 
         {subTab === 'code' && (() => {
           const animCount = autoEqPreview ? autoEqPreview.split('\n').filter(Boolean).length : 0;
+          const eelFields = ['per_frame_init_eqs_str', 'per_frame_eqs_str', 'per_pixel_eqs_str'];
+          const showEelWarning = eelFields.some(k => hasEelSyntax(getStr(preset, k)));
           return (
             <>
+              {/* Base Values */}
+              <div className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>Base Values</span>
+                  <button
+                    className="cfg-code-clear"
+                    onClick={() => setBaseValsText(serializeBaseVals(presetRef.current))}
+                    title="Re-sync from current sliders"
+                  >↺</button>
+                </div>
+                <p className="cfg-code-desc">
+                  All slider parameters as butterchurn <code className="cfg-inline-code">baseVals</code> key=value pairs.
+                  Edit here to update sliders, or move sliders to update this.
+                </p>
+                <textarea
+                  className="cfg-code-editor cfg-baseval-editor"
+                  value={baseValsText}
+                  onChange={e => handleBaseValsChange(e.target.value)}
+                  spellCheck={false}
+                  rows={14}
+                />
+              </div>
+
+              {/* EEL syntax warning */}
+              {showEelWarning && (
+                <div className="cfg-eel-warning">
+                  ⚠ Some equations appear to use native Milkdrop EEL syntax (bare variable names).
+                  Use <code className="cfg-inline-code">a.zoom</code>, <code className="cfg-inline-code">a.bass_att</code>, <code className="cfg-inline-code">Math.sin(a.time)</code> format for butterchurn compatibility.
+                  Paste a butterchurn-format preset JSON to auto-convert on import.
+                </div>
+              )}
+
               {/* Init equations */}
               <div className="cfg-code-field">
                 <div className="cfg-code-label">
                   <span>Init Equations</span>
                   <button className="cfg-code-clear" onClick={() => handleCodeChange('per_frame_init_eqs_str', '')} title="Clear">✕</button>
                 </div>
-                <p className="cfg-code-desc">Runs once on preset load. Initialize q1–q32 and custom variables.</p>
+                <p className="cfg-code-desc">Runs once on preset load. Initialize q1–q32 and custom variables here.</p>
                 <textarea
                   className="cfg-code-editor"
                   value={getStr(preset, 'per_frame_init_eqs_str')}
@@ -717,15 +723,14 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
                 />
               </div>
 
-              {/* Per-frame equations — unified editable field */}
+              {/* Per-frame equations */}
               <div className="cfg-code-field">
                 <div className="cfg-code-label">
                   <span>Per-Frame Equations</span>
                   <button className="cfg-code-clear" onClick={() => handleCodeChange('per_frame_eqs_str', '')} title="Clear">✕</button>
                 </div>
                 <p className="cfg-code-desc">
-                  Slider values appear as <code className="cfg-inline-code">a.var = X;</code> — edit or replace with expressions.
-                  Editing a simple literal updates the corresponding slider.
+                  Runs every frame. Audio: <code className="cfg-inline-code">a.bass_att</code>, <code className="cfg-inline-code">a.mid_att</code>, <code className="cfg-inline-code">a.treb_att</code>. Time: <code className="cfg-inline-code">a.time</code>.
                   {animCount > 0 && (
                     <span className="cfg-code-anim-hint"> · {animCount} animation {animCount === 1 ? 'equation' : 'equations'} from Animate tab are prepended at runtime.</span>
                   )}
@@ -736,7 +741,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
                   onChange={e => handleCodeChange('per_frame_eqs_str', e.target.value)}
                   spellCheck={false}
                   placeholder="a.zoom = 1.0 + 0.1*a.bass_att;"
-                  rows={8}
+                  rows={6}
                 />
               </div>
 
@@ -790,6 +795,17 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
                   rows={5}
                 />
               </div>
+
+              {/* Custom Waves */}
+              <div className="cfg-code-waves-header">Custom Waves</div>
+              {waves.map((wave, i) => (
+                <WaveEditor
+                  key={i}
+                  index={i}
+                  wave={wave}
+                  onChange={(w) => handleWaveChange(i, w)}
+                />
+              ))}
             </>
           );
         })()}

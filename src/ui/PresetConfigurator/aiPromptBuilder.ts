@@ -51,14 +51,23 @@ ${initCode || '(none)'}
 \`\`\`
 ${perFrameCode || '(none)'}
 \`\`\`
-Available audio variables: \`bass\`, \`mid\`, \`treb\`, \`vol\`, \`time\`, \`fps\`, \`frame\`
-Can override per-frame: \`zoom\`, \`rot\`, \`dx\`, \`dy\`, \`cx\`, \`cy\`, \`sx\`, \`sy\`, \`warp\`, \`decay\`, \`wave_r\`, \`wave_g\`, \`wave_b\`
+
+**IMPORTANT — Variable format:** Use butterchurn JavaScript format with \`a.\` prefix. NOT native Milkdrop EEL syntax.
+- Audio (smoothed): \`a.bass_att\`, \`a.mid_att\`, \`a.treb_att\`, \`a.vol\`
+- Time / state: \`a.time\`, \`a.fps\`, \`a.frame\`
+- Motion: \`a.zoom\`, \`a.rot\`, \`a.decay\`, \`a.warp\`, \`a.dx\`, \`a.dy\`, \`a.cx\`, \`a.cy\`, \`a.sx\`, \`a.sy\`
+- Wave color: \`a.wave_r\`, \`a.wave_g\`, \`a.wave_b\`
+- Math: \`Math.sin()\`, \`Math.cos()\`, \`Math.abs()\` — NOT \`sin()\`, \`cos()\` etc.
+- Q-variables (persist across frames): \`a.q1\` through \`a.q32\`
+
+Correct: \`a.zoom = 1.05 + 0.1*a.bass_att;\`
+Wrong: \`zoom = 1.05 + 0.1*bass;\`
 
 ## Per-Vertex (Warp) Equations
 \`\`\`
 ${perPixelCode || '(none)'}
 \`\`\`
-Per-vertex variables: \`x\`, \`y\` (0–1 coords), \`rad\`, \`ang\` (polar). Can override: \`zoom\`, \`rot\`, \`warp\`, \`x\`, \`y\`
+Per-vertex variables: \`a.x\`, \`a.y\` (0–1 coords), \`a.rad\`, \`a.ang\` (polar). Can override: \`a.zoom\`, \`a.rot\`, \`a.warp\`, \`a.dx\`, \`a.dy\`
 
 ---
 
@@ -75,14 +84,14 @@ Output ONLY a JSON object containing the parameters you want to change. Omit par
   "wave_g": 1.0,
   "wave_b": 0.8,
   "bAdditiveWaves": 1,
-  "per_frame_eqs_str": "zoom = 1.0 + 0.1*bass;\\nrot = 0.02*treble;"
+  "per_frame_eqs_str": "a.zoom = 1.0 + 0.1*a.bass_att;\\na.rot = 0.02*Math.sin(a.time);"
 }
 \`\`\`
 
 **Rules:**
 - Float values must be numbers (not strings)
 - Bool values: \`1\` = ON, \`0\` = OFF
-- Equation strings: use \`\\n\` for newlines
+- Equation strings: use \`\\n\` for newlines; use \`a.\` prefix on all variables; use \`Math.sin()\` not \`sin()\`
 - To replace the entire preset, include all parameters
 - Only output the JSON block — no other text needed
 `;
