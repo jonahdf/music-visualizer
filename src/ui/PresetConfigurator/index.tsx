@@ -9,7 +9,10 @@ import AnimationPanel from './AnimationPanel';
 import type { ModulationMap, ParamModulation } from './animationTypes';
 import { ANIM_PARAM_CONFIGS, defaultModulationMap } from './animationTypes';
 import { buildAutoEquations } from './generateAnimEquations';
-import { buildSliderCode } from './generateSliderCode';
+import {
+  TO_PERFRAME, SKIP_PERFRAME, fmtVal,
+  upsertCodeLine, removeSimpleLiteral, parseCodeSliders,
+} from './generateSliderCode';
 import './PresetConfigurator.css';
 
 interface Props {
@@ -238,29 +241,119 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     pushToRenderer(updated, base);
   }, [pushToRenderer]);
 
-  // Update a single parameter and push. Auto-equations are combined in pushToRenderer,
-  // so no special handling is needed for animated params here.
+  // Update a single non-code parameter. For slider params, also upserts a simple
+  // literal in per_frame_eqs_str so the Code tab reflects the change.
   const setParam = useCallback((key: string, value: unknown) => {
     setIsDirty(true);
-    const updated = { ...presetRef.current, [key]: value };
+    let updated = { ...presetRef.current, [key]: value };
+
+    const param = PARAM_BY_KEY[key];
+    if (param && param.type !== 'code' && typeof value === 'number' && !SKIP_PERFRAME.has(key)) {
+      const mod = modulationsRef.current[key];
+      const isAnimated = mod ? (mod.audioBand !== 'none' || mod.oscAmp !== 0) : false;
+      if (!isAnimated) {
+        const varName = TO_PERFRAME[key] ?? key;
+        const currentCode = String(updated.per_frame_eqs_str ?? '');
+        const newCode = upsertCodeLine(currentCode, varName, fmtVal(value, param));
+        if (newCode !== currentCode) updated = { ...updated, per_frame_eqs_str: newCode };
+      }
+    }
+
     presetRef.current = updated;
     setPreset(updated);
     pushToRenderer(updated, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
-  // Update one modulation entry and push — no preset state change needed
+  // Handle code textarea changes. Parses simple `a.var = number;` literals back
+  // to slider state so moving the slider and editing the code stay in sync.
+  const handleCodeChange = useCallback((key: string, code: string) => {
+    setIsDirty(true);
+    let updated = { ...presetRef.current, [key]: code };
+
+    if (key === 'per_frame_eqs_str') {
+      const parsed = parseCodeSliders(code);
+      for (const [uiKey, numVal] of Object.entries(parsed)) {
+        const p = PARAM_BY_KEY[uiKey];
+        if (p && p.type !== 'code') {
+          const clamped = p.min !== undefined && p.max !== undefined
+            ? Math.max(p.min, Math.min(p.max, numVal))
+            : numVal;
+          updated[uiKey] = clamped;
+        }
+      }
+    }
+
+    presetRef.current = updated;
+    setPreset(updated);
+    pushToRenderer(updated, baseBcPresetRef.current);
+  }, [pushToRenderer]);
+
+  // Update one modulation entry. Syncs code: removes static literal when animation
+  // turns on (so it doesn't override the animation equation), re-injects it when off.
   const setModulation = useCallback((key: string, mod: ParamModulation) => {
+    const oldMod = modulationsRef.current[key];
+    const wasActive = oldMod ? (oldMod.audioBand !== 'none' || oldMod.oscAmp !== 0) : false;
+    const isNowActive = mod.audioBand !== 'none' || mod.oscAmp !== 0;
+
     const newMods = { ...modulationsRef.current, [key]: mod };
     modulationsRef.current = newMods;
     setModulations(newMods);
+
+    if (wasActive !== isNowActive) {
+      const varName = TO_PERFRAME[key] ?? key;
+      const currentCode = String(presetRef.current.per_frame_eqs_str ?? '');
+      let newCode = currentCode;
+
+      if (isNowActive) {
+        newCode = removeSimpleLiteral(currentCode, varName);
+      } else {
+        const param = PARAM_BY_KEY[key];
+        if (param) {
+          const val = typeof presetRef.current[key] === 'number' ? presetRef.current[key] as number : 0;
+          newCode = upsertCodeLine(currentCode, varName, fmtVal(val, param));
+        }
+      }
+
+      if (newCode !== currentCode) {
+        const updated = { ...presetRef.current, per_frame_eqs_str: newCode };
+        presetRef.current = updated;
+        setPreset(updated);
+      }
+    }
+
     pushToRenderer(presetRef.current, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
   const handleClearAllAnimation = useCallback(() => {
+    const previousMods = modulationsRef.current;
     const cleared = defaultModulationMap();
     modulationsRef.current = cleared;
     setModulations(cleared);
-    pushToRenderer(presetRef.current, baseBcPresetRef.current);
+
+    let currentCode = String(presetRef.current.per_frame_eqs_str ?? '');
+    let changed = false;
+
+    for (const cfg of ANIM_PARAM_CONFIGS) {
+      const oldMod = previousMods[cfg.key];
+      if (oldMod && (oldMod.audioBand !== 'none' || oldMod.oscAmp !== 0)) {
+        const param = PARAM_BY_KEY[cfg.key];
+        if (param) {
+          const val = typeof presetRef.current[cfg.key] === 'number' ? presetRef.current[cfg.key] as number : 0;
+          const varName = TO_PERFRAME[cfg.key] ?? cfg.key;
+          const next = upsertCodeLine(currentCode, varName, fmtVal(val, param));
+          if (next !== currentCode) { currentCode = next; changed = true; }
+        }
+      }
+    }
+
+    if (changed) {
+      const updated = { ...presetRef.current, per_frame_eqs_str: currentCode };
+      presetRef.current = updated;
+      setPreset(updated);
+      pushToRenderer(updated, baseBcPresetRef.current);
+    } else {
+      pushToRenderer(presetRef.current, baseBcPresetRef.current);
+    }
   }, [pushToRenderer]);
 
   const handleLoadFromCurrent = () => {
@@ -293,18 +386,6 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const autoEqPreview = useMemo(
     () => buildAutoEquations(modulations, preset, ANIM_PARAM_CONFIGS),
     [modulations, preset],
-  );
-
-  // Per-frame assignments generated from slider values (read-only Code tab display)
-  const sliderCode = useMemo(
-    () => buildSliderCode(preset, DEFAULT_PRESET),
-    [preset],
-  );
-
-  // Full generated block: slider assignments + animation modulation equations
-  const fullGeneratedCode = useMemo(
-    () => [sliderCode, autoEqPreview].filter(Boolean).join('\n'),
-    [sliderCode, autoEqPreview],
   );
 
   // Conservative ranges for randomize — avoids extreme values that look broken
@@ -615,60 +696,103 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
           </>
         )}
 
-        {subTab === 'code' && PARAMS_BY_GROUP.code.map(p => {
-          if (p.key === 'per_frame_eqs_str') {
-            return (
-              <div key={p.key} className="cfg-code-field">
+        {subTab === 'code' && (() => {
+          const animCount = autoEqPreview ? autoEqPreview.split('\n').filter(Boolean).length : 0;
+          return (
+            <>
+              {/* Init equations */}
+              <div className="cfg-code-field">
                 <div className="cfg-code-label">
-                  <span>{p.label}</span>
-                  <button className="cfg-code-clear" onClick={() => setParam(p.key, '')} title="Clear custom code">✕</button>
+                  <span>Init Equations</span>
+                  <button className="cfg-code-clear" onClick={() => handleCodeChange('per_frame_init_eqs_str', '')} title="Clear">✕</button>
                 </div>
-                <p className="cfg-code-desc">{p.description}</p>
-                {fullGeneratedCode && (
-                  <div className="cfg-generated-block">
-                    <div className="cfg-generated-header">
-                      <span className="cfg-generated-title">Generated from UI controls</span>
-                      <span className="cfg-generated-hint">read-only · adjust sliders to change</span>
-                    </div>
-                    <textarea
-                      className="cfg-code-editor cfg-code-generated"
-                      value={fullGeneratedCode}
-                      readOnly
-                      rows={Math.min(fullGeneratedCode.split('\n').length + 1, 12)}
-                      spellCheck={false}
-                    />
-                  </div>
-                )}
-                <div className="cfg-code-custom-label">Custom code</div>
+                <p className="cfg-code-desc">Runs once on preset load. Initialize q1–q32 and custom variables.</p>
                 <textarea
                   className="cfg-code-editor"
-                  value={getStr(preset, p.key)}
-                  onChange={e => setParam(p.key, e.target.value)}
+                  value={getStr(preset, 'per_frame_init_eqs_str')}
+                  onChange={e => handleCodeChange('per_frame_init_eqs_str', e.target.value)}
+                  spellCheck={false}
+                  placeholder="q1 = 0; q2 = 0;"
+                  rows={3}
+                />
+              </div>
+
+              {/* Per-frame equations — unified editable field */}
+              <div className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>Per-Frame Equations</span>
+                  <button className="cfg-code-clear" onClick={() => handleCodeChange('per_frame_eqs_str', '')} title="Clear">✕</button>
+                </div>
+                <p className="cfg-code-desc">
+                  Slider values appear as <code className="cfg-inline-code">a.var = X;</code> — edit or replace with expressions.
+                  Editing a simple literal updates the corresponding slider.
+                  {animCount > 0 && (
+                    <span className="cfg-code-anim-hint"> · {animCount} animation {animCount === 1 ? 'equation' : 'equations'} from Animate tab are prepended at runtime.</span>
+                  )}
+                </p>
+                <textarea
+                  className="cfg-code-editor"
+                  value={getStr(preset, 'per_frame_eqs_str')}
+                  onChange={e => handleCodeChange('per_frame_eqs_str', e.target.value)}
                   spellCheck={false}
                   placeholder="a.zoom = 1.0 + 0.1*a.bass_att;"
+                  rows={8}
+                />
+              </div>
+
+              {/* Per-vertex equations */}
+              <div className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>Per-Vertex Equations</span>
+                  <button className="cfg-code-clear" onClick={() => handleCodeChange('per_pixel_eqs_str', '')} title="Clear">✕</button>
+                </div>
+                <p className="cfg-code-desc">Runs per mesh vertex. Variables: x, y, rad, ang. Can override zoom, rot, warp, dx, dy per vertex.</p>
+                <textarea
+                  className="cfg-code-editor"
+                  value={getStr(preset, 'per_pixel_eqs_str')}
+                  onChange={e => handleCodeChange('per_pixel_eqs_str', e.target.value)}
+                  spellCheck={false}
+                  placeholder="a.zoom = 1.0 + 0.1*a.rad;"
+                  rows={4}
+                />
+              </div>
+
+              {/* Warp shader */}
+              <div className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>Warp Shader (GLSL)</span>
+                  <button className="cfg-code-clear" onClick={() => handleCodeChange('warp_str', '')} title="Clear">✕</button>
+                </div>
+                <p className="cfg-code-desc">Per-pixel shader for the warp pass. Inputs: uv, uv_orig (vec2), rad, ang. Blur textures via GetBlur1/2/3(uv). Output: ret (vec4).</p>
+                <textarea
+                  className="cfg-code-editor"
+                  value={getStr(preset, 'warp_str')}
+                  onChange={e => handleCodeChange('warp_str', e.target.value)}
+                  spellCheck={false}
+                  placeholder="ret = tex2D(sampler_fw_main, uv);"
                   rows={5}
                 />
               </div>
-            );
-          }
-          return (
-            <div key={p.key} className="cfg-code-field">
-              <div className="cfg-code-label">
-                <span>{p.label}</span>
-                <button className="cfg-code-clear" onClick={() => setParam(p.key, '')} title="Clear">✕</button>
+
+              {/* Composite shader */}
+              <div className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>Composite Shader (GLSL)</span>
+                  <button className="cfg-code-clear" onClick={() => handleCodeChange('comp_str', '')} title="Clear">✕</button>
+                </div>
+                <p className="cfg-code-desc">Per-pixel shader for the final pass. Inputs: uv (vec2), rad, ang, hue_shader (vec3). Output: ret (vec4).</p>
+                <textarea
+                  className="cfg-code-editor"
+                  value={getStr(preset, 'comp_str')}
+                  onChange={e => handleCodeChange('comp_str', e.target.value)}
+                  spellCheck={false}
+                  placeholder="ret = tex2D(sampler_fw_main, uv) * float4(hue_shader, 1);"
+                  rows={5}
+                />
               </div>
-              <p className="cfg-code-desc">{p.description}</p>
-              <textarea
-                className="cfg-code-editor"
-                value={getStr(preset, p.key)}
-                onChange={e => setParam(p.key, e.target.value)}
-                spellCheck={false}
-                placeholder="a.zoom = 1.0 + 0.1*a.bass_att;"
-                rows={5}
-              />
-            </div>
+            </>
           );
-        })}
+        })()}
       </div>
 
       {/* AI Assist */}

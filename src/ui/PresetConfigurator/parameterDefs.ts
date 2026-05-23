@@ -278,15 +278,23 @@ export const PARAM_DEFS: ParamDef[] = [
   // ── Code ────────────────────────────────────────────────────────────────────
   {
     key: 'per_frame_init_eqs_str', label: 'Init Equations', group: 'code', type: 'code', default: '',
-    description: 'Code run once when the preset loads. Use to initialize variables. Example: q1=0; q2=0;',
+    description: 'Runs once when the preset loads. Initialize q1–q32 and custom variables here.',
   },
   {
     key: 'per_frame_eqs_str', label: 'Per-Frame Equations', group: 'code', type: 'code', default: '',
-    description: 'JavaScript evaluated every frame. All variables live on the `a` object. Audio: a.bass, a.mid, a.treb, a.vol, a.bass_att, a.mid_att, a.treb_att. Time: a.time, a.fps, a.frame. Motion: a.zoom, a.rot, a.dx, a.dy, a.warp, a.decay. Use Math.sin(), Math.abs() etc.',
+    description: 'Runs every frame. Slider values appear as simple assignments — edit them or replace with expressions. Audio: a.bass_att, a.mid_att, a.treb_att. Time: a.time, a.fps. Motion: a.zoom, a.rot, a.decay, a.warp, a.dx, a.dy.',
   },
   {
-    key: 'per_pixel_eqs_str', label: 'Per-Vertex (Warp) Equations', group: 'code', type: 'code', default: '',
-    description: 'Code evaluated per mesh vertex for custom warping. Variables: x, y (0–1 coords), rad, ang (polar). Can override: zoom, rot, warp, x, y.',
+    key: 'per_pixel_eqs_str', label: 'Per-Vertex Equations', group: 'code', type: 'code', default: '',
+    description: 'Runs per mesh vertex. Variables: x, y (0–1), rad, ang (polar). Can override zoom, rot, warp, dx, dy per vertex.',
+  },
+  {
+    key: 'warp_str', label: 'Warp Shader (GLSL)', group: 'code', type: 'code', default: '',
+    description: 'Per-pixel GLSL shader for the warp pass. Inputs: uv, uv_orig (vec2), rad, ang (float). Blur access: GetBlur1/2/3(uv). Output: ret (vec4). q1–q32 available from per-frame equations.',
+  },
+  {
+    key: 'comp_str', label: 'Composite Shader (GLSL)', group: 'code', type: 'code', default: '',
+    description: 'Per-pixel GLSL shader for the final composite pass. Inputs: uv (vec2), rad, ang, hue_shader (vec3). Output: ret (vec4). q1–q32 available from per-frame equations.',
   },
 ];
 

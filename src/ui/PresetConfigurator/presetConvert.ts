@@ -41,11 +41,15 @@ export function toButterchurnPreset(params: Record<string, unknown>): object {
   let init_eqs_str = '';
   let frame_eqs_str = '';
   let pixel_eqs_str = '';
+  let warp = '';
+  let comp = '';
 
   for (const [k, v] of Object.entries(params)) {
     if (k === 'per_frame_init_eqs_str') init_eqs_str = String(v ?? '');
     else if (k === 'per_frame_eqs_str') frame_eqs_str = String(v ?? '');
     else if (k === 'per_pixel_eqs_str') pixel_eqs_str = String(v ?? '');
+    else if (k === 'warp_str') warp = String(v ?? '');
+    else if (k === 'comp_str') comp = String(v ?? '');
     else baseVals[TO_BC[k] ?? k] = v;
   }
 
@@ -56,8 +60,8 @@ export function toButterchurnPreset(params: Record<string, unknown>): object {
     init_eqs_str,
     frame_eqs_str,
     pixel_eqs_str,
-    warp: '',
-    comp: '',
+    warp,
+    comp,
   };
 }
 
@@ -88,6 +92,8 @@ export function mergeIntoButterchurnPreset(params: Record<string, unknown>, base
     pixel_eqs_str: params.per_pixel_eqs_str !== undefined
       ? String(params.per_pixel_eqs_str)
       : (data.pixel_eqs_str ?? ''),
+    warp: params.warp_str !== undefined ? String(params.warp_str) : (data.warp ?? ''),
+    comp: params.comp_str !== undefined ? String(params.comp_str) : (data.comp ?? ''),
   };
 }
 
@@ -105,6 +111,8 @@ export function fromButterchurnPreset(presetData: object): Record<string, unknow
   flat.per_frame_init_eqs_str = String(data.init_eqs_str ?? '');
   flat.per_frame_eqs_str = String(data.frame_eqs_str ?? '');
   flat.per_pixel_eqs_str = String(data.pixel_eqs_str ?? '');
+  flat.warp_str = String(data.warp ?? '');
+  flat.comp_str = String(data.comp ?? '');
 
   return flat;
 }
