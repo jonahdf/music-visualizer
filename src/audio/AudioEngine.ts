@@ -18,6 +18,8 @@ export class AudioEngine {
   private stream: MediaStream | null = null;
   private frequencyData: Uint8Array = new Uint8Array(0);
   private timeData: Uint8Array = new Uint8Array(0);
+  private debugMode = false;
+  private lastDebugLog = 0;
 
   private currentBuffer: AudioBuffer | null = null;
   private bufferStartedAt: number = 0;
@@ -38,7 +40,6 @@ export class AudioEngine {
     this.analyser = this.context.createAnalyser();
     this.analyser.fftSize = fftSize;
     this.analyser.smoothingTimeConstant = 0.8;
-    // Dedicated gain node in the butterchurn signal path — gain adjusted per source type
     this.vizBoostNode = this.context.createGain();
     this.vizBoostNode.gain.value = 1.0;
     this.analyser.connect(this.vizBoostNode);
@@ -168,6 +169,18 @@ export class AudioEngine {
       this.analyser.getByteTimeDomainData(this.timeData as Uint8Array<ArrayBuffer>);
     }
 
+    if (this.debugMode) {
+      const now = performance.now();
+      if (now - this.lastDebugLog > 1000) {
+        const max = Math.max(...this.frequencyData);
+        const avg = Math.floor(this.frequencyData.reduce((a, b) => a + b, 0) / this.frequencyData.length);
+        const nonZero = Array.from(this.frequencyData).filter(v => v > 0).length;
+        console.log(`[Audio Debug] Max: ${max}, Avg: ${avg}, Non-zero bins: ${nonZero}/${this.frequencyData.length}`);
+        console.log(`[Audio Debug] Frequency data:`, Array.from(this.frequencyData.slice(0, 32)));
+        this.lastDebugLog = now;
+      }
+    }
+
     const bins = this.frequencyData.length;
     const bassEnd = Math.floor(bins * 0.1);
     const midEnd = Math.floor(bins * 0.5);
@@ -190,6 +203,11 @@ export class AudioEngine {
 
   setMuted(muted: boolean) {
     if (this.gainNode) this.gainNode.gain.value = muted ? 0 : 1;
+  }
+
+  setDebugMode(enabled: boolean) {
+    this.debugMode = enabled;
+    console.log(`[Audio Debug] Debug mode ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   getContext() { return this.context; }

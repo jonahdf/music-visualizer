@@ -116,11 +116,32 @@ export default function App() {
     rendererRef.current = renderer;
 
     const vizNode = audioEngine.getVizNode();
-    if (vizNode) renderer.connectAudio(vizNode);
+    const analyser = audioEngine.getAnalyser();
+    if (vizNode) renderer.connectAudio(vizNode, analyser ?? undefined);
 
     renderer.startRenderLoop();
     setInitialized(true);
   }, [initialized, graphicsSettings]);
+
+  // Expose debug interface to console
+  useEffect(() => {
+    (window as any).audioDebug = {
+      setDebugMode: (enabled: boolean) => {
+        if (rendererRef.current) {
+          rendererRef.current.setDebugMode(enabled);
+        } else {
+          console.warn('Renderer not initialized yet. Click the canvas or open the menu first.');
+        }
+      },
+    };
+  }, []);
+
+  // Update debug interface when renderer initializes
+  useEffect(() => {
+    if (initialized) {
+      console.log('Audio debug available: window.audioDebug.setDebugMode(true)');
+    }
+  }, [initialized]);
 
   // FPS counter via rAF
   useEffect(() => {

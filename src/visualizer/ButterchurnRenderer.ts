@@ -11,6 +11,9 @@ export class ButterchurnRenderer {
   private lastFrameTime = 0;
   private fpsCap = 60;
   private currentPresetName = '';
+  private analyser: AnalyserNode | null = null;
+  private debugMode = false;
+  private lastDebugLog = 0;
 
   init(canvas: HTMLCanvasElement, audioContext: AudioContext, quality: QualitySettings) {
     this.canvas = canvas;
@@ -43,9 +46,15 @@ export class ButterchurnRenderer {
     this.currentPresetName = name;
   }
 
-  connectAudio(node: AudioNode) {
+  connectAudio(node: AudioNode, analyser?: AnalyserNode) {
     if (!this.visualizer) return;
     this.visualizer.connectAudio(node);
+    this.analyser = analyser ?? null;
+  }
+
+  setDebugMode(enabled: boolean) {
+    this.debugMode = enabled;
+    console.log(`[Renderer Debug] Debug mode ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   resize(width: number, height: number, quality: QualitySettings) {
@@ -77,6 +86,20 @@ export class ButterchurnRenderer {
       const minInterval = this.fpsCap > 0 ? 1000 / this.fpsCap : 0;
       if (timestamp - this.lastFrameTime < minInterval) return;
       this.lastFrameTime = timestamp;
+
+      if (this.debugMode && this.analyser) {
+        const now = performance.now();
+        if (now - this.lastDebugLog > 1000) {
+          const freqData = new Uint8Array(this.analyser.frequencyBinCount);
+          this.analyser.getByteFrequencyData(freqData);
+          const max = Math.max(...freqData);
+          const avg = Math.floor(freqData.reduce((a, b) => a + b, 0) / freqData.length);
+          const nonZero = Array.from(freqData).filter(v => v > 0).length;
+          console.log(`[Renderer Debug] Max: ${max}, Avg: ${avg}, Non-zero bins: ${nonZero}/${freqData.length}`);
+          console.log(`[Renderer Debug] Frequency data:`, Array.from(freqData.slice(0, 32)));
+          this.lastDebugLog = now;
+        }
+      }
 
       if (this.visualizer) {
         this.visualizer.render();
