@@ -65,10 +65,15 @@ When('I enable auto-advance at {string}', async ({ appPage }, label: string) => 
 // Note: 'the HUD preset name should be visible and non-empty' lives in common.steps.ts.
 
 When('I click the HUD heart button', async ({ appPage }) => {
-  // Ensure bottom bar is visible and preset has loaded (bar-fav only renders when activePreset is set)
+  // Reset auto-hide timer and wait for the bar to be genuinely un-hidden.
+  // Playwright's { state: 'visible' } does NOT check opacity, so bar-fav can appear
+  // "visible" even when bottom-bar has opacity:0 + pointer-events:none (bar-hidden).
   await appPage.mouse.move(400, 300);
+  await expect(appPage.locator('.bottom-bar')).not.toHaveClass(/bar-hidden/, { timeout: 5_000 });
   const btn = appPage.locator('.bar-fav');
-  await btn.waitFor({ state: 'visible', timeout: 10_000 });
+  await btn.waitFor({ state: 'attached', timeout: 10_000 });
+  // hover() fires a mousemove event right before click, keeping the 3s timer alive.
+  await btn.hover();
   await btn.click();
 });
 
@@ -85,12 +90,15 @@ Then('the HUD heart button should appear empty', async ({ appPage }) => {
 });
 
 Given('the current preset is favorited from the HUD', async ({ appPage }) => {
-  // Move mouse to reset the auto-hide timer, then wait for bar-fav to appear
-  // (it only renders when activePreset is loaded) and for bar-hidden to clear.
+  // Reset timer and wait for the bar to be genuinely un-hidden before interacting.
   await appPage.mouse.move(400, 300);
+  await expect(appPage.locator('.bottom-bar')).not.toHaveClass(/bar-hidden/, { timeout: 5_000 });
   const btn = appPage.locator('.bar-fav');
-  await btn.waitFor({ state: 'visible', timeout: 10_000 });
+  await btn.waitFor({ state: 'attached', timeout: 10_000 });
   const isActive = await btn.evaluate((el) => el.classList.contains('active'));
-  if (!isActive) await btn.click();
+  if (!isActive) {
+    await btn.hover();
+    await btn.click();
+  }
   await expect(btn).toHaveClass(/active/);
 });
