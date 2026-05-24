@@ -1,7 +1,0 @@
-{
-  "issue_number": 9,
-  "branch": "issue-9-preset-text-import",
-  "status": "in_progress",
-  "notes": "Starting implementation of issue #9: Importing preset via text. The import panel in Create tab already handles both full butterchurn JSON (baseVals key) and AI diff JSON, but the UI only labels itself as 'AI' focused. Need to: 1) add live format detection, 2) update hint text, 3) conditionally hide the Replace entirely checkbox for full presets.",
-  "pr_url": null
-}
