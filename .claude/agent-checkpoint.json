@@ -1,7 +1,0 @@
-{
-  "issue_number": 14,
-  "branch": "issue-14-changelog",
-  "status": "in_progress",
-  "notes": "Starting implementation of issue #14: Change log. Plan: 1) Create CHANGELOG.md with backfilled history from PRs, 2) Create ChangelogModal component (imports CHANGELOG.md via Vite ?raw), 3) Add changelog button to BottomBar, 4) Wire up modal in App.tsx, 5) Add CSS styles, 6) Update CLAUDE.md, 7) Add CI changelog-check workflow, 8) Write BDD tests.",
-  "pr_url": null
-}
