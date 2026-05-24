@@ -559,6 +559,17 @@
 .cfg-import-textarea:focus { border-color: rgba(124, 58, 237, 0.4); }
 .cfg-import-textarea::placeholder { color: rgba(255, 255, 255, 0.15); }
 
+.cfg-import-detect {
+  font-size: 0.67rem;
+  margin: 4px 0 0;
+}
+.cfg-import-detect-full {
+  color: #86efac;
+}
+.cfg-import-detect-diff {
+  color: #a5f3fc;
+}
+
 .cfg-import-error {
   font-size: 0.67rem;
   color: #f87171;

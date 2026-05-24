@@ -232,6 +232,23 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const [importText, setImportText] = useState('');
   const [importReplace, setImportReplace] = useState(false);
   const [importError, setImportError] = useState('');
+
+  type ImportFormat = { kind: 'full' } | { kind: 'diff'; count: number } | null;
+  const detectedFormat = useMemo<ImportFormat>(() => {
+    if (!importText.trim()) return null;
+    let jsonStr = importText.trim();
+    const m = jsonStr.match(/```(?:json)?\s*([\s\S]+?)```/);
+    if (m) jsonStr = m[1].trim();
+    try {
+      const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+      if ('baseVals' in parsed) return { kind: 'full' };
+      const count = Object.keys(parsed).filter(k => PARAM_BY_KEY[k]).length;
+      return { kind: 'diff', count };
+    } catch {
+      return null;
+    }
+  }, [importText]);
   const [saveMsg, setSaveMsg] = useState('');
   const [confirmMode, setConfirmMode] = useState<'reset' | 'randomize' | null>(null);
   const [confirmChecked, setConfirmChecked] = useState(false);
@@ -881,15 +898,9 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
       {/* Import panel */}
       {showImport && (
         <div className="cfg-import-panel">
-          <p className="cfg-import-hint">Paste the AI's JSON output below.</p>
-          <label className="cfg-import-replace">
-            <input
-              type="checkbox"
-              checked={importReplace}
-              onChange={e => setImportReplace(e.target.checked)}
-            />
-            Replace entirely (uncheck to merge changes only)
-          </label>
+          <p className="cfg-import-hint">
+            Paste a <strong>full preset JSON</strong> (with a <code>baseVals</code> key) or an <strong>AI response JSON</strong> below.
+          </p>
           <textarea
             className="cfg-import-textarea"
             value={importText}
@@ -897,6 +908,23 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
             placeholder={'{\n  "zoom": 1.05,\n  "rot": 0.01\n}'}
             rows={5}
           />
+          {detectedFormat && (
+            <p className={`cfg-import-detect cfg-import-detect-${detectedFormat.kind}`}>
+              {detectedFormat.kind === 'full'
+                ? '✓ Full preset detected — will replace all parameters'
+                : `✓ AI diff — ${detectedFormat.count} parameter${detectedFormat.count === 1 ? '' : 's'} recognized`}
+            </p>
+          )}
+          {detectedFormat?.kind !== 'full' && (
+            <label className="cfg-import-replace">
+              <input
+                type="checkbox"
+                checked={importReplace}
+                onChange={e => setImportReplace(e.target.checked)}
+              />
+              Replace entirely (uncheck to merge changes only)
+            </label>
+          )}
           {importError && <p className="cfg-import-error">{importError}</p>}
           <div className="cfg-import-actions">
             <button className="cfg-btn cfg-btn-accent" onClick={handleImport}>Apply</button>
