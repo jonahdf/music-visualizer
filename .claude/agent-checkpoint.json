@@ -1,7 +1,0 @@
-{
-  "issue_number": 17,
-  "branch": "issue-17-github-link",
-  "status": "in_progress",
-  "notes": "Starting implementation of issue #17: Link to GitHub issues page for bug fixes or feature requests. Plan: add a subtle link at the bottom of the Settings tab in the Drawer component linking to https://github.com/jonahdf/music-visualizer/issues",
-  "pr_url": null
-}
