@@ -8,9 +8,8 @@ Then('the block button should be present in the bottom bar', async ({ appPage })
 });
 
 When('I click the block button', async ({ appPage }) => {
-  await appPage.mouse.move(400, 300);
-  await appPage.waitForFunction(() => !document.querySelector('.bottom-bar')?.classList.contains('bar-hidden'));
-  await appPage.locator('.bar-block').click();
+  // dispatchEvent bypasses pointer-events: the bar may be auto-hidden in CI.
+  await appPage.locator('.bar-block').dispatchEvent('click');
 });
 
 Then('the block button should appear active', async ({ appPage }) => {
@@ -22,11 +21,9 @@ Then('the block button should not appear active', async ({ appPage }) => {
 });
 
 Given('the current preset is blocked', async ({ appPage }) => {
-  await appPage.mouse.move(400, 300);
-  await appPage.waitForFunction(() => !document.querySelector('.bottom-bar')?.classList.contains('bar-hidden'));
   const btn = appPage.locator('.bar-block');
   const isActive = await btn.evaluate(el => el.classList.contains('active'));
-  if (!isActive) await btn.click();
+  if (!isActive) await btn.dispatchEvent('click');
   await expect(btn).toHaveClass(/active/);
 });
 

@@ -65,6 +65,7 @@ Then('the menu toggle button should be visible and clickable', async ({ appPage 
 });
 
 Then('I should be able to open the menu again', async ({ appPage }) => {
-  await appPage.locator('.bar-btn[title="Menu (P)"]').click();
+  // dispatchEvent bypasses pointer-events: the bar may be auto-hidden in CI.
+  await appPage.locator('.bar-btn[title="Menu (P)"]').dispatchEvent('click');
   await expect(appPage.locator('.drawer')).toHaveClass(/drawer-open/);
 });

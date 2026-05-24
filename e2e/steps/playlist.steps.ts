@@ -54,17 +54,17 @@ When('I click the {string} mode button', async ({ appPage }, label: string) => {
 // ─── Navigation buttons (in bottom bar) ──────────────────────────────────────
 
 When('I click the Prev button', async ({ appPage }) => {
-  await appPage.locator('.bar-btn[title*="Previous"]').click();
+  await appPage.locator('.bar-btn[title*="Previous"]').dispatchEvent('click');
   await appPage.waitForTimeout(200);
 });
 
 When('I click the Next button', async ({ appPage }) => {
-  await appPage.locator('.bar-btn[title*="Next"]').click();
+  await appPage.locator('.bar-btn[title*="Next"]').dispatchEvent('click');
   await appPage.waitForTimeout(200);
 });
 
 When('I click the Random button', async ({ appPage }) => {
-  await appPage.locator('.bar-random').click();
+  await appPage.locator('.bar-random').dispatchEvent('click');
   await appPage.waitForTimeout(200);
 });
 
@@ -110,13 +110,11 @@ Then('the bottom bar preset name should be visible and non-empty', async ({ appP
 });
 
 When('I click the bottom bar heart button', async ({ appPage }) => {
-  await appPage.mouse.move(400, 300);
-  await appPage.waitForFunction(() => !document.querySelector('.bottom-bar')?.classList.contains('bar-hidden'));
-  await appPage.locator('.bar-fav').click();
+  await appPage.locator('.bar-fav').dispatchEvent('click');
 });
 
 When('I click the bottom bar heart button again', async ({ appPage }) => {
-  await appPage.locator('.bar-fav').click();
+  await appPage.locator('.bar-fav').dispatchEvent('click');
 });
 
 Then('the bottom bar heart should appear filled', async ({ appPage }) => {

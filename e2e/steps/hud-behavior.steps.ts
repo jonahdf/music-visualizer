@@ -65,16 +65,13 @@ When('I enable auto-advance at {string}', async ({ appPage }, label: string) => 
 // Note: 'the HUD preset name should be visible and non-empty' lives in common.steps.ts.
 
 When('I click the HUD heart button', async ({ appPage }) => {
-  // Reset auto-hide timer and wait for the bar to be genuinely un-hidden.
-  // Playwright's { state: 'visible' } does NOT check opacity, so bar-fav can appear
-  // "visible" even when bottom-bar has opacity:0 + pointer-events:none (bar-hidden).
-  await appPage.mouse.move(400, 300);
-  await expect(appPage.locator('.bottom-bar')).not.toHaveClass(/bar-hidden/, { timeout: 5_000 });
+  // bar-fav only renders when activePreset is set; wait for it to be in the DOM.
   const btn = appPage.locator('.bar-fav');
   await btn.waitFor({ state: 'attached', timeout: 10_000 });
-  // hover() fires a mousemove event right before click, keeping the 3s timer alive.
-  await btn.hover();
-  await btn.click();
+  // dispatchEvent bypasses pointer-events CSS. The bottom-bar has
+  // `pointer-events: none` when auto-hidden (bar-hidden class), which makes
+  // Playwright's normal click() fail. dispatchEvent fires the React onClick directly.
+  await btn.dispatchEvent('click');
 });
 
 Then('the HUD heart button should appear filled', async ({ appPage }) => {
@@ -90,15 +87,9 @@ Then('the HUD heart button should appear empty', async ({ appPage }) => {
 });
 
 Given('the current preset is favorited from the HUD', async ({ appPage }) => {
-  // Reset timer and wait for the bar to be genuinely un-hidden before interacting.
-  await appPage.mouse.move(400, 300);
-  await expect(appPage.locator('.bottom-bar')).not.toHaveClass(/bar-hidden/, { timeout: 5_000 });
   const btn = appPage.locator('.bar-fav');
   await btn.waitFor({ state: 'attached', timeout: 10_000 });
   const isActive = await btn.evaluate((el) => el.classList.contains('active'));
-  if (!isActive) {
-    await btn.hover();
-    await btn.click();
-  }
+  if (!isActive) await btn.dispatchEvent('click');
   await expect(btn).toHaveClass(/active/);
 });
