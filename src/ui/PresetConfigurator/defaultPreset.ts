@@ -17,7 +17,7 @@ export const DEFAULT_PRESET: Record<string, unknown> = {
 
   // Wave
   nWaveMode: 0,
-  fWaveAlpha: 80,
+  fWaveAlpha: 0.5,
   fWaveScale: 1.0,
   fWaveSmoothing: 0.75,
   wave_r: 1.0,

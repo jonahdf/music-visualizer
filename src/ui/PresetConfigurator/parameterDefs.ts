@@ -18,13 +18,13 @@ export const PARAM_DEFS: ParamDef[] = [
   // ── Motion ──────────────────────────────────────────────────────────────────
   {
     key: 'zoom', label: 'Zoom', group: 'motion', type: 'float',
-    min: 0.5, max: 2.0, step: 0.001, default: 1.0,
-    description: 'Base zoom factor per frame. >1.0 = tunnel inward, <1.0 = collapse outward. Values close to 1.02 create a smooth infinite-tunnel effect.',
+    min: 0.9, max: 1.1, step: 0.001, default: 1.0,
+    description: 'Base zoom factor per frame. >1.0 = tunnel inward, <1.0 = collapse outward. 0.99=slight collapse, 1.0=no zoom, 1.01=slight tunnel. Type a value outside 0.9–1.1 for extreme effects.',
   },
   {
     key: 'rot', label: 'Rotation', group: 'motion', type: 'float',
-    min: -2.0, max: 2.0, step: 0.001, default: 0.0,
-    description: 'Rotation speed in radians per frame. Positive = clockwise, negative = counter-clockwise. ~0.01 is a slow spin; ~0.3 is fast.',
+    min: -0.1, max: 0.1, step: 0.001, default: 0.0,
+    description: 'Rotation speed in radians per frame. 0=none, 0.01=slow spin, 0.1=fast spin. Negative = counter-clockwise. Type a value outside ±0.1 for extreme rotation.',
   },
   {
     key: 'cx', label: 'Center X', group: 'motion', type: 'float',
@@ -38,28 +38,28 @@ export const PARAM_DEFS: ParamDef[] = [
   },
   {
     key: 'dx', label: 'Drift X', group: 'motion', type: 'float',
-    min: -0.5, max: 0.5, step: 0.001, default: 0.0,
-    description: 'Horizontal translation drift per frame. Positive = drift right, negative = left. Small values (±0.01) create a slow pan.',
+    min: -0.05, max: 0.05, step: 0.001, default: 0.0,
+    description: 'Horizontal translation drift per frame. Positive = drift right, negative = left. 0.01 = drift 1% per frame. Type a value outside ±0.05 for extreme pan.',
   },
   {
     key: 'dy', label: 'Drift Y', group: 'motion', type: 'float',
-    min: -0.5, max: 0.5, step: 0.001, default: 0.0,
-    description: 'Vertical translation drift per frame. Positive = drift down, negative = up.',
+    min: -0.05, max: 0.05, step: 0.001, default: 0.0,
+    description: 'Vertical translation drift per frame. Positive = drift down, negative = up. Type a value outside ±0.05 for extreme pan.',
   },
   {
     key: 'warp', label: 'Warp Amount', group: 'motion', type: 'float',
-    min: 0.0, max: 4.0, step: 0.01, default: 1.0,
-    description: 'Amplitude of the mesh warp distortion. 0=no warp, 1=default, higher values create more chaotic fluid distortion.',
+    min: 0.0, max: 2.0, step: 0.01, default: 1.0,
+    description: 'Amplitude of the mesh warp distortion. 0=no warp, 1=default, 2=heavy distortion. Type a value above 2 for extreme warping.',
   },
   {
     key: 'sx', label: 'Stretch X', group: 'motion', type: 'float',
-    min: 0.5, max: 2.0, step: 0.01, default: 1.0,
-    description: 'Horizontal stretch factor. >1.0 = wider, <1.0 = narrower. Stretches the entire warp field.',
+    min: 0.9, max: 1.1, step: 0.001, default: 1.0,
+    description: 'Horizontal stretch factor. >1.0 = wider, <1.0 = narrower. 0.99=shrink 1%, 1.01=stretch 1%. Type a value outside 0.9–1.1 for extreme stretch.',
   },
   {
     key: 'sy', label: 'Stretch Y', group: 'motion', type: 'float',
-    min: 0.5, max: 2.0, step: 0.01, default: 1.0,
-    description: 'Vertical stretch factor. >1.0 = taller, <1.0 = shorter.',
+    min: 0.9, max: 1.1, step: 0.001, default: 1.0,
+    description: 'Vertical stretch factor. >1.0 = taller, <1.0 = shorter. Type a value outside 0.9–1.1 for extreme stretch.',
   },
   {
     key: 'fZoomExponent', label: 'Zoom Exponent', group: 'motion', type: 'float',
@@ -104,8 +104,8 @@ export const PARAM_DEFS: ParamDef[] = [
   },
   {
     key: 'fWaveAlpha', label: 'Wave Opacity', group: 'wave', type: 'float',
-    min: 0, max: 255, step: 1, default: 80,
-    description: 'Opacity of the wave overlay. 0=invisible, ~80=semi-transparent, 255=fully opaque.',
+    min: 0, max: 1, step: 0.01, default: 0.5,
+    description: 'Opacity of the wave overlay (0–1). 0=invisible, 0.5=semi-transparent, 1=fully opaque.',
   },
   {
     key: 'fWaveScale', label: 'Wave Amplitude', group: 'wave', type: 'float',

@@ -163,9 +163,8 @@ function ParamRow({ param, preset, setParam, compact }: ParamRowProps) {
 
   const commitEdit = (raw: string) => {
     const n = parseFloat(raw);
-    if (!isNaN(n)) {
-      const clamped = Math.max(min, Math.min(max, n));
-      setParam(param.key, clamped);
+    if (!isNaN(n) && isFinite(n)) {
+      setParam(param.key, n);
     }
     setEditVal(null);
   };
@@ -395,13 +394,13 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
 
   // Conservative ranges for randomize — avoids extreme values that look broken
   const RAND_RANGE: Record<string, [number, number]> = {
-    zoom: [0.88, 1.12], rot: [-0.06, 0.06], warp: [0, 1.5],
+    zoom: [0.95, 1.05], rot: [-0.06, 0.06], warp: [0, 1.5],
     fDecay: [0.90, 0.998], fWarpScale: [0.1, 1.5], fWarpAnimSpeed: [0.1, 3.0],
     fZoomExponent: [0.5, 2.0], fShader: [0, 0.4],
-    fWaveAlpha: [30, 180], fWaveScale: [0.1, 3.0],
+    fWaveAlpha: [0.1, 0.9], fWaveScale: [0.1, 3.0],
     fVideoEchoZoom: [1.0, 1.4], fVideoEchoAlpha: [0, 0.4],
-    dx: [-0.1, 0.1], dy: [-0.1, 0.1],
-    sx: [0.8, 1.2], sy: [0.8, 1.2],
+    dx: [-0.03, 0.03], dy: [-0.03, 0.03],
+    sx: [0.95, 1.05], sy: [0.95, 1.05],
   };
 
   function randValue(param: ParamDef): number {
