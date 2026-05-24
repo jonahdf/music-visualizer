@@ -53,9 +53,8 @@ export function fmtVal(v: number, param: ParamDef): string {
 
 /**
  * Builds static `a.varName = value;` override lines for all animatable params
- * that are NOT currently animated. These are appended after user equations but
- * before animation equations so sliders override loaded-preset equations while
- * animations still win overall.
+ * that are NOT currently animated. Injected BEFORE user equations so user code
+ * can override slider defaults, while animations (appended last) always win.
  */
 export function buildSliderOverrides(
   params: Record<string, unknown>,
@@ -75,6 +74,42 @@ export function buildSliderOverrides(
     lines.push(`a.${varName} = ${fmtVal(numVal, param)};`);
   }
   return lines.join('\n');
+}
+
+/**
+ * Scans per-frame equation code for static literal assignments like `a.zoom = 1.05;`
+ * (right-hand side is a plain number with no variables or operators beyond an optional
+ * leading minus). Extracted assignments become slider values; those lines are removed
+ * from the returned `remaining` string. Dynamic equations (`a.zoom = 1+0.1*a.bass_att;`)
+ * are left in place.
+ *
+ * Called when loading an external preset so that static equations sync to sliders
+ * and no longer compete with slider overrides at runtime.
+ */
+export function extractStaticLiterals(
+  code: string,
+  configs: AnimParamConfig[],
+): { extracted: Record<string, number>; remaining: string } {
+  const extracted: Record<string, number> = {};
+  const lines = code.split('\n');
+  const remaining: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    let matched = false;
+    for (const cfg of configs) {
+      const varName = PER_FRAME_KEY[cfg.key] ?? cfg.key;
+      const m = trimmed.match(new RegExp(`^a\\.${varName}\\s*=\\s*(-?[\\d.]+)\\s*;?\\s*$`));
+      if (m) {
+        extracted[cfg.key] = parseFloat(m[1]);
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) remaining.push(line);
+  }
+
+  return { extracted, remaining: remaining.join('\n').trim() };
 }
 
 /**

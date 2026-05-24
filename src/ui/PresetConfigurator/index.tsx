@@ -9,7 +9,7 @@ import AnimationPanel from './AnimationPanel';
 import type { ModulationMap, ParamModulation } from './animationTypes';
 import { ANIM_PARAM_CONFIGS, defaultModulationMap } from './animationTypes';
 import { buildAutoEquations } from './generateAnimEquations';
-import { serializeBaseVals, parseBaseVals, hasEelSyntax, buildSliderOverrides } from './generateSliderCode';
+import { serializeBaseVals, parseBaseVals, hasEelSyntax, buildSliderOverrides, extractStaticLiterals } from './generateSliderCode';
 import type { WaveState } from './waveTypes';
 import { defaultWaves } from './waveTypes';
 import WaveEditor from './WaveEditor';
@@ -244,16 +244,16 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const baseBcPresetRef = useRef<object | null>(null);
   const wavesRef = useRef<WaveState[]>(defaultWaves());
 
-  // Combine per-frame equations in priority order (lower = overrides higher):
-  //   1. user's per_frame_eqs_str  (loaded preset equations, base user code)
-  //   2. slider overrides          (static a.var = X; for non-animated params)
+  // Combine per-frame equations in priority order (later lines win):
+  //   1. slider overrides          (static a.var = X; for non-animated params — lowest priority)
+  //   2. user's per_frame_eqs_str  (user code overrides slider defaults)
   //   3. animation equations       (highest priority — always win)
   // No comment markers — butterchurn's expression parser doesn't support them.
   const combineEquations = useCallback((params: Record<string, unknown>, mods: ModulationMap): Record<string, unknown> => {
-    const userEqs = String(params.per_frame_eqs_str ?? '');
     const sliderOverrides = buildSliderOverrides(params, mods, ANIM_PARAM_CONFIGS);
+    const userEqs = String(params.per_frame_eqs_str ?? '');
     const autoEqs = buildAutoEquations(mods, params, ANIM_PARAM_CONFIGS);
-    const parts = [userEqs, sliderOverrides, autoEqs].filter(Boolean);
+    const parts = [sliderOverrides, userEqs, autoEqs].filter(Boolean);
     return { ...params, per_frame_eqs_str: parts.join('\n') };
   }, []);
 
@@ -265,12 +265,17 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     onLivePreviewChange(data);
   }, [onLivePreviewChange, combineEquations]);
 
-  // Build butterchurn preset for save/export — bakes auto-equations in
+  // Build butterchurn preset for save/export.
+  // Bakes animation (auto) equations into frame_eqs_str but NOT slider overrides —
+  // those are already reflected in baseVals so baking them would cause conflicts on re-import.
   const buildBcPreset = useCallback((params: Record<string, unknown>, base: object | null, wvs?: WaveState[]): object => {
-    const combined = combineEquations(params, modulationsRef.current);
+    const autoEqs = buildAutoEquations(modulationsRef.current, params, ANIM_PARAM_CONFIGS);
+    const userEqs = String(params.per_frame_eqs_str ?? '');
+    const frameEqs = [userEqs, autoEqs].filter(Boolean).join('\n');
+    const exportParams = { ...params, per_frame_eqs_str: frameEqs };
     const waveArr = wvs ?? wavesRef.current;
-    return base ? mergeIntoButterchurnPreset(combined, base, waveArr) : toButterchurnPreset(combined, waveArr);
-  }, [combineEquations]);
+    return base ? mergeIntoButterchurnPreset(exportParams, base, waveArr) : toButterchurnPreset(exportParams, waveArr);
+  }, []);
 
   // Apply a new flat preset (replaces entire state) and push to renderer
   const applyPreset = useCallback((updated: Record<string, unknown>, base: object | null = baseBcPresetRef.current) => {
@@ -345,7 +350,13 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
 
   const handleLoadFromCurrent = () => {
     if (!activePresetData) return;
-    const { flat, waves: loadedWaves } = fromButterchurnPreset(activePresetData);
+    const { flat: rawFlat, waves: loadedWaves } = fromButterchurnPreset(activePresetData);
+    // Extract static literal assignments (e.g. `a.zoom = 1.01;`) from per_frame_eqs_str
+    // and promote them to slider values so sliders reflect the loaded preset correctly.
+    const { extracted, remaining } = extractStaticLiterals(
+      String(rawFlat.per_frame_eqs_str ?? ''), ANIM_PARAM_CONFIGS,
+    );
+    const flat = { ...rawFlat, ...extracted, per_frame_eqs_str: remaining };
     presetRef.current = flat;
     baseBcPresetRef.current = activePresetData;
     wavesRef.current = loadedWaves;
@@ -354,7 +365,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     setWaves(loadedWaves);
     setBaseValsText(serializeBaseVals(flat));
     setIsDirty(false);
-    onLivePreviewChange(activePresetData);
+    pushToRenderer(flat, activePresetData, loadedWaves);
   };
 
   const handleResetAll = () => {
@@ -480,7 +491,11 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
 
     // Butterchurn native format (has baseVals key) — extract flat params + waves
     if ('baseVals' in parsed) {
-      const { flat, waves: loadedWaves } = fromButterchurnPreset(parsed as object);
+      const { flat: rawFlat, waves: loadedWaves } = fromButterchurnPreset(parsed as object);
+      const { extracted, remaining } = extractStaticLiterals(
+        String(rawFlat.per_frame_eqs_str ?? ''), ANIM_PARAM_CONFIGS,
+      );
+      const flat = { ...rawFlat, ...extracted, per_frame_eqs_str: remaining };
       wavesRef.current = loadedWaves;
       setWaves(loadedWaves);
       setShowImport(false);
