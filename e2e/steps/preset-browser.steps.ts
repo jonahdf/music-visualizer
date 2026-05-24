@@ -41,6 +41,7 @@ Then('I should see the no-results message', async ({ appPage }) => {
 
 When('I type {string} in the search box', async ({ appPage }, text: string) => {
   await appPage.locator('.search-input').fill(text);
+  await appPage.waitForTimeout(200); // wait for React re-render
 });
 
 Given('I have typed {string} in the search box', async ({ appPage }, text: string) => {
@@ -54,11 +55,12 @@ When('I clear the search box', async ({ appPage }) => {
 
 Then('all visible presets should contain {string} in their name', async ({ appPage }, text: string) => {
   const names = appPage.locator('.preset-name');
-  const count = await names.count();
-  expect(count).toBeGreaterThan(0);
-  for (let i = 0; i < count; i++) {
-    const name = await names.nth(i).textContent();
-    expect(name?.toLowerCase()).toContain(text.toLowerCase());
+  // allTextContents() is a single bulk read — avoids per-element timeouts when
+  // the filtered list is large (70+ matches for common search terms in CI).
+  const allNames = await names.allTextContents();
+  expect(allNames.length).toBeGreaterThan(0);
+  for (const name of allNames) {
+    expect(name.toLowerCase()).toContain(text.toLowerCase());
   }
 });
 
@@ -81,7 +83,7 @@ Then('the HUD preset name should match the preset I selected', async ({ appPage 
   // Name was stored in "I click the first preset in the list" step
   const selectedName: string = (appPage as any).__selectedPresetName ?? '';
   expect(selectedName.length, 'No preset name was stored — ensure "I click the first preset" ran first').toBeGreaterThan(0);
-  const hudName = await appPage.locator('.hud-preset-name').textContent();
+  const hudName = await appPage.locator('.bar-preset-name').textContent();
   expect(hudName?.trim()).toBe(selectedName);
 });
 

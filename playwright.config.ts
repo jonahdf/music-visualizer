@@ -18,7 +18,7 @@ export default defineConfig({
   fullyParallel: false,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI
-    ? [['github'], ['html', { open: 'never' }]]
+    ? [['github'], ['list'], ['html', { open: 'never' }]]
     : [['list'], ['html', { open: 'on-failure' }]],
 
   use: {
@@ -47,9 +47,15 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run dev',
+    // In CI use the production build: butterchurn-presets ships as one optimised
+    // chunk so initializeApp() finishes in ~3s instead of ~15s over the dev server.
+    // Locally reuse whatever is already running on 5174 (npm run dev).
+    command: process.env.CI
+      ? 'npm run build && npx vite preview --port 5174'
+      : 'npm run dev',
     url: 'http://localhost:5174',
     reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
+    // Build + preview startup can take up to 90s on a slow CI runner.
+    timeout: process.env.CI ? 90_000 : 30_000,
   },
 });

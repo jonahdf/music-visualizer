@@ -4,7 +4,7 @@ Feature: Quality and graphics settings
 
   Background:
     Given the app is initialized
-    And the menu is open on the Graphics tab
+    And the menu is open on the Settings tab
 
   Scenario: Default quality level is Medium
     Then the "Medium" quality button should be active
@@ -21,7 +21,7 @@ Feature: Quality and graphics settings
   Scenario: Quality selection persists after page reload
     When I click the "High" quality button
     And I reload the page
-    And the menu is open on the Graphics tab
+    And the menu is open on the Settings tab
     Then the "High" quality button should be active
 
   Scenario: The Performance subtab is shown by default
@@ -52,7 +52,7 @@ Feature: Quality and graphics settings
     When I click the "Visual" subtab
     And I click the "Instant" blend time button
     And I reload the page
-    And the menu is open on the Graphics tab
+    And the menu is open on the Settings tab
     And I click the "Visual" subtab
     Then the "Instant" blend time button should be active
 

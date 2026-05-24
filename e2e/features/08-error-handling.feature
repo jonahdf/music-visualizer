@@ -5,7 +5,7 @@ Feature: Error handling
   Scenario: Mic permission denial shows a dismissible error toast
     Given the app is initialized
     And microphone permission will be denied
-    And the menu is open on the Source tab
+    And the menu is open on the Audio tab
     When I click the "Microphone" source card
     Then an error toast should be visible
     And the error toast should mention "permission" or "denied"
@@ -13,7 +13,7 @@ Feature: Error handling
   Scenario: Error toast is dismissed by clicking it
     Given the app is initialized
     And microphone permission will be denied
-    And the menu is open on the Source tab
+    And the menu is open on the Audio tab
     When I click the "Microphone" source card
     And I click the error toast
     Then no error toast should be visible
@@ -21,7 +21,7 @@ Feature: Error handling
   Scenario: Tab Audio with no audio tracks shows a helpful error
     Given the app is initialized
     And getDisplayMedia returns no audio tracks
-    And the menu is open on the Source tab
+    And the menu is open on the Audio tab
     When I click the "Tab Audio" source card
     Then an error toast should be visible
     And the error toast should mention "audio"
@@ -29,7 +29,7 @@ Feature: Error handling
   Scenario: App remains usable after dismissing a mic error
     Given the app is initialized
     And microphone permission will be denied
-    And the menu is open on the Source tab
+    And the menu is open on the Audio tab
     When I click the "Microphone" source card
     And I click the error toast
     Then no error toast should be visible

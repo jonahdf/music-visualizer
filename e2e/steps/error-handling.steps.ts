@@ -44,13 +44,12 @@ Then('the error toast should mention {string}', async ({ appPage }, word: string
 });
 
 When('I click the error toast', async ({ appPage }) => {
-  // Close the menu first — the menu overlay intercepts pointer events and prevents
-  // React's synthetic onClick on the toast from firing, even with force: true.
-  // The error toast persists after menu close, so this doesn't change scenario intent.
-  const menu = appPage.locator('.menu-overlay');
-  if (await menu.isVisible()) {
-    await appPage.locator('.close-btn').click();
-    await menu.waitFor({ state: 'hidden' });
+  // Close the drawer first — it may intercept pointer events on the toast.
+  // The error toast persists after drawer close, so this doesn't change scenario intent.
+  const drawer = appPage.locator('.drawer');
+  if (await drawer.evaluate(el => el.classList.contains('drawer-open'))) {
+    await appPage.locator('.drawer-close').click();
+    await expect(drawer).not.toHaveClass(/drawer-open/);
   }
   await appPage.locator('.error-toast').click();
   await appPage.waitForTimeout(200);
@@ -59,12 +58,14 @@ When('I click the error toast', async ({ appPage }) => {
 // ─── Recovery assertions ───────────────────────────────────────────────────────
 
 Then('the menu toggle button should be visible and clickable', async ({ appPage }) => {
-  const btn = appPage.locator('.menu-toggle');
+  // The ☰ menu button lives in the bottom bar
+  const btn = appPage.locator('.bar-btn[title="Menu (P)"]');
   await expect(btn).toBeVisible();
   await expect(btn).toBeEnabled();
 });
 
 Then('I should be able to open the menu again', async ({ appPage }) => {
-  await appPage.locator('.menu-toggle').click();
-  await expect(appPage.locator('.menu-overlay')).toBeVisible();
+  // dispatchEvent bypasses pointer-events: the bar may be auto-hidden in CI.
+  await appPage.locator('.bar-btn[title="Menu (P)"]').dispatchEvent('click');
+  await expect(appPage.locator('.drawer')).toHaveClass(/drawer-open/);
 });

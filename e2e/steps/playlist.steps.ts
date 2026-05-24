@@ -51,83 +51,78 @@ When('I click the {string} mode button', async ({ appPage }, label: string) => {
   await appPage.locator(`.mode-btn:has-text("${label}")`).click();
 });
 
-// ─── Navigation buttons ───────────────────────────────────────────────────────
+// ─── Navigation buttons (in bottom bar) ──────────────────────────────────────
 
 When('I click the Prev button', async ({ appPage }) => {
-  await appPage.locator('.ctrl-btn:has-text("Prev")').click();
+  await appPage.locator('.bar-btn[title*="Previous"]').dispatchEvent('click');
   await appPage.waitForTimeout(200);
 });
 
 When('I click the Next button', async ({ appPage }) => {
-  await appPage.locator('.ctrl-btn:has-text("Next")').click();
+  await appPage.locator('.bar-btn[title*="Next"]').dispatchEvent('click');
   await appPage.waitForTimeout(200);
 });
 
 When('I click the Random button', async ({ appPage }) => {
-  await appPage.locator('.ctrl-btn:has-text("Random")').click();
+  await appPage.locator('.bar-random').dispatchEvent('click');
   await appPage.waitForTimeout(200);
 });
 
-// ─── Favorites list ───────────────────────────────────────────────────────────
+// ─── Favorites (managed in Presets tab) ──────────────────────────────────────
 
 Given('I have favorited the first preset in the preset browser', async ({ appPage }) => {
   await openMenu(appPage);
   await goToTab(appPage, 'Presets');
   await appPage.locator('.preset-item').first().waitFor({ state: 'visible', timeout: 10_000 });
 
-  const name = await appPage.locator('.preset-item').first()
-    .locator('.preset-name').textContent();
-  (appPage as any).__favoritedPresetName = name?.trim();
-
   const btn = appPage.locator('.preset-item').first().locator('.favorite-btn');
   const isActive = await btn.evaluate((el) => el.classList.contains('active'));
   if (!isActive) await btn.click();
   await expect(btn).toHaveClass(/active/);
-
-  await goToTab(appPage, 'Playlist');
 });
 
-Then('the favorites list should contain that preset', async ({ appPage }) => {
-  const name: string = (appPage as any).__favoritedPresetName ?? '';
-  expect(name.length).toBeGreaterThan(0);
-  await expect(appPage.locator('.favorites-list')).toBeVisible();
-  await expect(appPage.locator('.fav-item-name', { hasText: name })).toBeVisible();
+Then("the first preset's favorite button should be active", async ({ appPage }) => {
+  await openMenu(appPage);
+  await goToTab(appPage, 'Presets');
+  const btn = appPage.locator('.preset-item').first().locator('.favorite-btn');
+  await expect(btn).toHaveClass(/active/);
 });
 
-When('I click the favorite button for that preset in the favorites list', async ({ appPage }) => {
-  const name: string = (appPage as any).__favoritedPresetName ?? '';
-  const favItem = appPage.locator('.fav-item', {
-    has: appPage.locator(`.fav-item-name:has-text("${name}")`),
-  });
-  await favItem.locator('.favorite-btn').click();
+When('I unfavorite the first preset in the preset browser', async ({ appPage }) => {
+  await openMenu(appPage);
+  await goToTab(appPage, 'Presets');
+  const btn = appPage.locator('.preset-item').first().locator('.favorite-btn');
+  await btn.click();
 });
 
-Then('the favorites list should not contain that preset', async ({ appPage }) => {
-  const name: string = (appPage as any).__favoritedPresetName ?? '';
-  await expect(appPage.locator(`.fav-item-name:has-text("${name}")`)).not.toBeVisible();
+Then("the first preset's favorite button should not be active", async ({ appPage }) => {
+  const btn = appPage.locator('.preset-item').first().locator('.favorite-btn');
+  await expect(btn).not.toHaveClass(/active/);
 });
 
-// ─── Now Playing section ──────────────────────────────────────────────────────
+// ─── Bottom bar preset name and heart ────────────────────────────────────────
 
-Then('the Now Playing section should show a non-empty preset name', async ({ appPage }) => {
-  const nameEl = appPage.locator('.now-playing-name');
+Then('the bottom bar preset name should be visible and non-empty', async ({ appPage }) => {
+  const nameEl = appPage.locator('.bar-preset-name');
   await expect(nameEl).toBeVisible();
   const text = await nameEl.textContent();
   expect(text?.trim().length).toBeGreaterThan(0);
 });
 
-When('I click the heart button in the Now Playing row', async ({ appPage }) => {
-  await appPage.locator('.now-playing-row .favorite-btn').click();
+When('I click the bottom bar heart button', async ({ appPage }) => {
+  await appPage.locator('.bar-fav').dispatchEvent('click');
 });
 
-When('I click the heart button in the Now Playing row again', async ({ appPage }) => {
-  await appPage.locator('.now-playing-row .favorite-btn').click();
+When('I click the bottom bar heart button again', async ({ appPage }) => {
+  await appPage.locator('.bar-fav').dispatchEvent('click');
 });
 
-Then('the Now Playing heart should appear filled', async ({ appPage }) => {
-  await expect(appPage.locator('.now-playing-row .favorite-btn')).toHaveClass(/active/);
+Then('the bottom bar heart should appear filled', async ({ appPage }) => {
+  await expect(appPage.locator('.bar-fav')).toHaveClass(/active/);
+  await expect(appPage.locator('.bar-fav')).toContainText('♥');
 });
 
-Then('the Now Playing heart should appear empty', async ({ appPage }) => {
-  await expect(appPage.locator('.now-playing-row .favorite-btn')).not.toHaveClass(/active/);
+Then('the bottom bar heart should appear empty', async ({ appPage }) => {
+  await expect(appPage.locator('.bar-fav')).not.toHaveClass(/active/);
+  await expect(appPage.locator('.bar-fav')).toContainText('♡');
 });

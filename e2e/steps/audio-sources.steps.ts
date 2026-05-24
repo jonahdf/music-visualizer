@@ -31,8 +31,9 @@ Then('the {string} source card should not be active', async ({ appPage }, label:
 });
 
 Then('the HUD source label should show {string}', async ({ appPage }, expected: string) => {
-  await expect(appPage.locator('.hud-source')).toBeVisible();
-  await expect(appPage.locator('.hud-source')).toHaveText(expected);
+  // Source shown as a pill badge in the bottom bar (e.g. "mic", "tab", "file")
+  const pill = appPage.locator(`.bar-pill:has-text("${expected}")`);
+  await expect(pill).toBeVisible();
 });
 
 Then('the {string} source card should show a Firefox badge', async ({ appPage }, label: string) => {
@@ -52,7 +53,7 @@ Given('the page is running as Firefox', async ({ firefoxPage }) => {
     await overlay.waitFor({ state: 'detached', timeout: 15_000 });
   }
   await openMenu(firefoxPage);
-  await goToTab(firefoxPage, 'Source');
+  await goToTab(firefoxPage, 'Audio');
 });
 
 // The Firefox scenario uses firefoxPage fixture, so we need these steps to use it too.

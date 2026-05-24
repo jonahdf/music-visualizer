@@ -62,12 +62,13 @@ export async function openApp(page: Page): Promise<void> {
 
 /**
  * Navigate and click through the start overlay so AudioContext + renderer
- * are initialized. Waits for the overlay to detach (set by setInitialized(true)).
+ * are initialized. Waits for the overlay to detach (set by setInitialized(true))
+ * and for the first preset to be active (so bar-fav/bar-block are rendered).
  *
- * After init, moves the mouse to reset the HUD auto-hide timer. App.tsx calls
+ * After init, moves the mouse to reset the bottom bar auto-hide timer. App.tsx calls
  * resetTimer() on mount which starts a 3-second countdown immediately; the overlay
- * click + detach wait can take 3-4 s, leaving the HUD already hidden. A mouse move
- * after init mirrors what real users do and keeps the HUD visible for assertions.
+ * click + detach wait can take 3-4 s, leaving the bar already hidden. A mouse move
+ * after init mirrors what real users do and keeps the bar visible for assertions.
  */
 export async function initializeApp(page: Page): Promise<void> {
   await openApp(page);
@@ -76,52 +77,63 @@ export async function initializeApp(page: Page): Promise<void> {
   await overlay.click();
   // Overlay detaches once initialized=true is set in React
   await overlay.waitFor({ state: 'detached', timeout: 15_000 });
-  // Reset the HUD auto-hide timer so the HUD is visible for assertions
+  // Navigate to the first real preset so activePreset is non-null and bar-fav/bar-block render.
+  // The app auto-loads a DEFAULT_PRESET (id='default') which is not in the presets array,
+  // so bar-preset-name shows '—'. We wait for the lazy-imported preset bundles to finish
+  // loading, then press ArrowRight to load pool[0].
+  await page.locator('.preset-item').first().waitFor({ state: 'attached', timeout: 20_000 });
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(
+    () => document.querySelector('.bar-preset-name')?.textContent !== '—',
+    null,
+    { timeout: 10_000 }
+  );
+  // Reset the bottom bar auto-hide timer so it stays visible for assertions
   await page.mouse.move(400, 300);
 }
 
-/** Open the menu via Space key; wait for the panel to appear. */
+/** Open the drawer menu via the P key; wait for it to slide open. */
 export async function openMenu(page: Page): Promise<void> {
-  const menu = page.locator('.menu-overlay');
-  const isOpen = await menu.isVisible().catch(() => false);
+  const drawer = page.locator('.drawer');
+  const isOpen = await drawer.evaluate(el => el.classList.contains('drawer-open')).catch(() => false);
   if (!isOpen) {
-    await page.keyboard.press('Space');
-    await menu.waitFor({ state: 'visible' });
+    await page.keyboard.press('p');
+    await expect(drawer).toHaveClass(/drawer-open/);
   }
 }
 
-/** Close the menu via the close button; wait for the panel to disappear. */
+/** Close the drawer via the ✕ button; wait for it to close. */
 export async function closeMenu(page: Page): Promise<void> {
-  const menu = page.locator('.menu-overlay');
-  const isOpen = await menu.isVisible().catch(() => false);
+  const drawer = page.locator('.drawer');
+  const isOpen = await drawer.evaluate(el => el.classList.contains('drawer-open')).catch(() => false);
   if (isOpen) {
-    await page.locator('.close-btn').click();
-    await menu.waitFor({ state: 'hidden' });
+    await page.locator('.drawer-close').click();
+    await expect(drawer).not.toHaveClass(/drawer-open/);
   }
 }
 
-/** Navigate to a named tab in the menu (must already be open). */
+/** Navigate to a named tab in the drawer (must already be open). */
 export async function goToTab(
   page: Page,
-  tab: 'Presets' | 'Playlist' | 'Source' | 'Graphics'
+  tab: 'Presets' | 'Audio' | 'Settings' | 'Create'
 ): Promise<void> {
-  await page.locator(`.menu-tab:has-text("${tab}")`).click();
+  await page.locator(`.drawer-tab:has-text("${tab}")`).click();
 }
 
 /**
- * Initialize the app, open the menu, and navigate to a tab.
+ * Initialize the app, open the drawer, and navigate to a tab.
  * Convenience helper for Background steps.
  */
 export async function initAndOpenTab(
   page: Page,
-  tab: 'Presets' | 'Playlist' | 'Source' | 'Graphics'
+  tab: 'Presets' | 'Audio' | 'Settings' | 'Create'
 ): Promise<void> {
   await initializeApp(page);
   await openMenu(page);
   await goToTab(page, tab);
 }
 
-/** Read the current active preset name from the HUD. */
+/** Read the current active preset name from the bottom bar. */
 export async function getActivePresetName(page: Page): Promise<string> {
-  return (await page.locator('.hud-preset-name').textContent()) ?? '';
+  return (await page.locator('.bar-preset-name').textContent()) ?? '';
 }

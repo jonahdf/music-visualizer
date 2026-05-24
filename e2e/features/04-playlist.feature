@@ -4,7 +4,7 @@ Feature: Playlist management
 
   Background:
     Given the app is initialized
-    And the menu is open on the Playlist tab
+    And the menu is open on the Settings tab
 
   Scenario: Auto-advance defaults to Off
     Then the "Off" interval button should be active
@@ -17,7 +17,7 @@ Feature: Playlist management
   Scenario: Interval selection persists after page reload
     When I click the "30s" interval button
     And I reload the page
-    And the menu is open on the Playlist tab
+    And the menu is open on the Settings tab
     Then the "30s" interval button should be active
 
   Scenario: Hold button is shown only when auto-advance is enabled
@@ -48,7 +48,7 @@ Feature: Playlist management
   Scenario: Playlist mode persists after page reload
     When I click the "Favorites" mode button
     And I reload the page
-    And the menu is open on the Playlist tab
+    And the menu is open on the Settings tab
     Then the "Favorites" mode button should be active
 
   Scenario: Prev button navigates to a different preset
@@ -66,20 +66,20 @@ Feature: Playlist management
     When I click the Random button
     Then the active preset should have changed
 
-  Scenario: Favoriting a preset adds it to the Favorites list
+  Scenario: Favoriting a preset in the Presets tab marks it active
     Given I have favorited the first preset in the preset browser
-    Then the favorites list should contain that preset
+    Then the first preset's favorite button should be active
 
-  Scenario: Unfavoriting removes the preset from the Favorites list
+  Scenario: Unfavoriting in the Presets tab removes the active mark
     Given I have favorited the first preset in the preset browser
-    When I click the favorite button for that preset in the favorites list
-    Then the favorites list should not contain that preset
+    When I unfavorite the first preset in the preset browser
+    Then the first preset's favorite button should not be active
 
-  Scenario: Now Playing section shows the current preset name
-    Then the Now Playing section should show a non-empty preset name
+  Scenario: Bottom bar shows the current preset name
+    Then the bottom bar preset name should be visible and non-empty
 
-  Scenario: Favoriting from Now Playing row fills the heart
-    When I click the heart button in the Now Playing row
-    Then the Now Playing heart should appear filled
-    When I click the heart button in the Now Playing row again
-    Then the Now Playing heart should appear empty
+  Scenario: Favoriting from the bottom bar fills the heart
+    When I click the bottom bar heart button
+    Then the bottom bar heart should appear filled
+    When I click the bottom bar heart button again
+    Then the bottom bar heart should appear empty
