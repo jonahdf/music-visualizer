@@ -1,0 +1,7 @@
+{
+  "issue_number": 16,
+  "branch": "issue-16-responsive-hud",
+  "status": "in_progress",
+  "notes": "CSS fix applied: .app--drawer-open .bottom-bar gets left: var(--drawer-width) and .app--drawer-open .now-playing-hud centers relative to canvas area. New feature file e2e/features/16-responsive-hud.feature and step definitions added. New scenarios pass. Running full test suite to check for regressions. Type check clean.",
+  "pr_url": null
+}

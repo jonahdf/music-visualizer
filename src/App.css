@@ -27,6 +27,21 @@
   transition: none;
 }
 
+/* ── Drawer-aware HUD positioning ─────────────────────── */
+.app--drawer-open .bottom-bar {
+  left: var(--drawer-width, 340px);
+  transition: left 0.22s ease, opacity 0.5s ease;
+}
+
+.app--resizing .bottom-bar {
+  transition: opacity 0.5s ease;
+}
+
+.app--drawer-open .now-playing-hud {
+  /* Center relative to canvas area (viewport minus drawer) */
+  left: calc(var(--drawer-width, 340px) + (100vw - var(--drawer-width, 340px)) / 2);
+}
+
 /* ── Start overlay ────────────────────────────────────── */
 .start-overlay {
   position: absolute;
