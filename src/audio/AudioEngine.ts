@@ -136,6 +136,16 @@ export class AudioEngine {
     this._startBuffer(this.bufferOffset);
   }
 
+  seekBuffer(time: number) {
+    if (!this.currentBuffer) return;
+    const safeTime = Math.max(0, Math.min(time, this.currentBuffer.duration));
+    if (this.bufferPaused) {
+      this.bufferOffset = safeTime;
+    } else {
+      this._startBuffer(safeTime);
+    }
+  }
+
   getBufferProgress(): { current: number; duration: number; paused: boolean } | null {
     if (!this.currentBuffer || !this.context) return null;
     let current: number;

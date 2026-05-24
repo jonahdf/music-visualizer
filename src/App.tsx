@@ -411,6 +411,10 @@ export default function App() {
     handleSelectTrack(prev);
   }, [currentTrack, handleSelectTrack]);
 
+  const handleSeek = useCallback((time: number) => {
+    audioEngine.seekBuffer(time);
+  }, []);
+
   const handleTrackNext = useCallback(() => {
     if (!currentTrack) return;
     const idx = SAMPLE_TRACKS.findIndex(t => t.id === currentTrack.id);
@@ -525,6 +529,7 @@ export default function App() {
         onPause={handleTrackPause}
         onPrev={handleTrackPrev}
         onNext={handleTrackNext}
+        onSeek={handleSeek}
       />
 
       <BottomBar
