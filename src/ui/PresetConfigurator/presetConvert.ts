@@ -62,6 +62,15 @@ const EEL_MATH: [RegExp, string][] = [
   [/\bmin\s*\(/g, 'Math.min('], [/\bmax\s*\(/g, 'Math.max('],
 ];
 
+/** Ensures each semicolon-terminated statement is on its own line. */
+export function formatEquations(eqStr: string): string {
+  if (!eqStr.trim()) return eqStr;
+  return eqStr
+    .replace(/;[ \t]*/g, ';\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
 /**
  * Best-effort conversion of native Milkdrop EEL equation syntax to butterchurn JS format.
  * Skips if the string already uses the `a.` prefix (already butterchurn format).
@@ -166,9 +175,9 @@ export function fromButterchurnPreset(presetData: object): FromBcResult {
     if (PARAM_BY_KEY[ourKey] !== undefined) flat[ourKey] = v;
   }
 
-  flat.per_frame_init_eqs_str = convertEelToButterchurnJs(String(data.init_eqs_str ?? ''));
-  flat.per_frame_eqs_str      = convertEelToButterchurnJs(String(data.frame_eqs_str ?? ''));
-  flat.per_pixel_eqs_str      = convertEelToButterchurnJs(String(data.pixel_eqs_str ?? ''));
+  flat.per_frame_init_eqs_str = formatEquations(convertEelToButterchurnJs(String(data.init_eqs_str ?? '')));
+  flat.per_frame_eqs_str      = formatEquations(convertEelToButterchurnJs(String(data.frame_eqs_str ?? '')));
+  flat.per_pixel_eqs_str      = formatEquations(convertEelToButterchurnJs(String(data.pixel_eqs_str ?? '')));
   flat.warp_str               = String(data.warp ?? '');
   flat.comp_str               = String(data.comp ?? '');
 
