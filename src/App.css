@@ -1597,3 +1597,124 @@ kbd {
   text-align: center;
   flex-shrink: 0;
 }
+
+/* ── Changelog modal ──────────────────────────────────── */
+.changelog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.changelog-modal {
+  background: rgba(18, 18, 24, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  width: min(520px, 90vw);
+  max-height: 75vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7);
+}
+
+.changelog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.changelog-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.02em;
+}
+
+.changelog-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.changelog-close:hover { color: #fff; }
+
+.changelog-body {
+  overflow-y: auto;
+  padding: 10px 18px 16px;
+  flex: 1;
+}
+
+.changelog-section {
+  margin-bottom: 18px;
+}
+.changelog-section:last-child { margin-bottom: 0; }
+
+.changelog-date {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.28);
+  margin-bottom: 8px;
+}
+
+.changelog-entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.changelog-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+}
+
+.changelog-tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.changelog-tag-feat    { background: rgba(100, 200, 120, 0.18); color: #7de89a; }
+.changelog-tag-fix     { background: rgba(220, 160, 60, 0.18);  color: #f0ba6a; }
+.changelog-tag-refactor { background: rgba(120, 140, 220, 0.18); color: #a0b4f0; }
+.changelog-tag-perf    { background: rgba(200, 100, 200, 0.18); color: #e090e0; }
+.changelog-tag-docs    { background: rgba(100, 180, 220, 0.18); color: #80c8e8; }
+.changelog-tag-chore   { background: rgba(160, 160, 160, 0.15); color: #aaa; }
+
+.changelog-entry-text {
+  flex: 1;
+}
+
+.changelog-pr-link {
+  font-size: 0.68rem;
+  color: rgba(140, 180, 255, 0.6);
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.changelog-pr-link:hover { color: rgba(140, 180, 255, 1); }
+
+.bar-changelog {
+  font-size: 0.75rem;
+}

@@ -30,6 +30,7 @@ interface Props {
   onToggleHold: () => void;
   onOpenMenu: () => void;
   onToggleKeyGuide: () => void;
+  onOpenChangelog: () => void;
 }
 
 export default function BottomBar({
@@ -56,6 +57,7 @@ export default function BottomBar({
   onToggleHold,
   onOpenMenu,
   onToggleKeyGuide,
+  onOpenChangelog,
 }: Props) {
   return (
     <div className={`bottom-bar${!visible ? ' bar-hidden' : ''}`}>
@@ -131,6 +133,13 @@ export default function BottomBar({
           title="Keyboard shortcuts (?)"
         >
           ?
+        </button>
+        <button
+          className="bar-btn bar-changelog"
+          onClick={onOpenChangelog}
+          title="What's New"
+        >
+          ✦
         </button>
       </div>
     </div>
