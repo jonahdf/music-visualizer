@@ -9,6 +9,10 @@ import AnimationPanel from './AnimationPanel';
 import type { ModulationMap, ParamModulation } from './animationTypes';
 import { ANIM_PARAM_CONFIGS, defaultModulationMap } from './animationTypes';
 import { buildAutoEquations } from './generateAnimEquations';
+import { serializeBaseVals, parseBaseVals, hasEelSyntax, buildSliderOverrides, extractStaticLiterals } from './generateSliderCode';
+import type { WaveState } from './waveTypes';
+import { defaultWaves } from './waveTypes';
+import WaveEditor from './WaveEditor';
 import './PresetConfigurator.css';
 
 interface Props {
@@ -101,6 +105,7 @@ interface ParamRowProps {
 
 function ParamRow({ param, preset, setParam, compact }: ParamRowProps) {
   const [showDesc, setShowDesc] = useState(false);
+  const [editVal, setEditVal] = useState<string | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
   if (param.type === 'code') return null;
@@ -156,12 +161,41 @@ function ParamRow({ param, preset, setParam, compact }: ParamRowProps) {
     ? numValue.toFixed(decimals)
     : '—';
 
+  const commitEdit = (raw: string) => {
+    const n = parseFloat(raw);
+    if (!isNaN(n)) {
+      const clamped = Math.max(min, Math.min(max, n));
+      setParam(param.key, clamped);
+    }
+    setEditVal(null);
+  };
+
   return (
     <div className={`cfg-param-row${compact ? ' compact' : ''}`}>
       <div className="cfg-param-header">
         <label className="cfg-param-label">{compact ? shortLabel(param.key, param.label) : param.label}</label>
         <div className="cfg-param-right">
-          <span className="cfg-param-value">{displayValue}</span>
+          {editVal !== null ? (
+            <input
+              className="cfg-param-value-input"
+              type="text"
+              value={editVal}
+              onChange={e => setEditVal(e.target.value)}
+              onBlur={e => commitEdit(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                if (e.key === 'Escape') setEditVal(null);
+              }}
+              autoFocus
+              onFocus={e => e.target.select()}
+            />
+          ) : (
+            <span
+              className="cfg-param-value"
+              onClick={() => setEditVal(displayValue)}
+              title="Click to edit"
+            >{displayValue}</span>
+          )}
           {!compact && (
             <>
               <button ref={btnRef} className="cfg-desc-btn" onClick={toggleDesc} title="About">?</button>
@@ -192,6 +226,8 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const [presetName, setPresetName] = useState('My Custom Preset');
   const [subTab, setSubTab] = useState<SubTabId>('motion');
   const [modulations, setModulations] = useState<ModulationMap>(defaultModulationMap);
+  const [waves, setWaves] = useState<WaveState[]>(defaultWaves);
+  const [baseValsText, setBaseValsText] = useState<string>(() => serializeBaseVals(DEFAULT_PRESET));
   const [copied, setCopied] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
@@ -206,48 +242,89 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const presetRef = useRef<Record<string, unknown>>({ ...DEFAULT_PRESET });
   const modulationsRef = useRef<ModulationMap>(modulations);
   const baseBcPresetRef = useRef<object | null>(null);
+  const wavesRef = useRef<WaveState[]>(defaultWaves());
 
-  // Combine user's per_frame_eqs with the auto-generated animation equations.
-  // Auto-equations are prepended; user code comes after. No comment markers —
-  // butterchurn's expression parser doesn't support them.
+  // Combine per-frame equations in priority order (later lines win):
+  //   1. slider overrides          (static a.var = X; for non-animated params — lowest priority)
+  //   2. user's per_frame_eqs_str  (user code overrides slider defaults)
+  //   3. animation equations       (highest priority — always win)
+  // No comment markers — butterchurn's expression parser doesn't support them.
   const combineEquations = useCallback((params: Record<string, unknown>, mods: ModulationMap): Record<string, unknown> => {
-    const autoEqs = buildAutoEquations(mods, params, ANIM_PARAM_CONFIGS);
+    const sliderOverrides = buildSliderOverrides(params, mods, ANIM_PARAM_CONFIGS);
     const userEqs = String(params.per_frame_eqs_str ?? '');
-    const combined = autoEqs && userEqs ? autoEqs + '\n' + userEqs : autoEqs || userEqs;
-    return { ...params, per_frame_eqs_str: combined };
+    const autoEqs = buildAutoEquations(mods, params, ANIM_PARAM_CONFIGS);
+    const parts = [sliderOverrides, userEqs, autoEqs].filter(Boolean);
+    return { ...params, per_frame_eqs_str: parts.join('\n') };
   }, []);
 
   // Helper: push a flat preset to the renderer (side-effect, never call inside an updater)
-  const pushToRenderer = useCallback((params: Record<string, unknown>, base: object | null) => {
+  const pushToRenderer = useCallback((params: Record<string, unknown>, base: object | null, wvs?: WaveState[]) => {
     const combined = combineEquations(params, modulationsRef.current);
-    const data = base ? mergeIntoButterchurnPreset(combined, base) : toButterchurnPreset(combined);
+    const waveArr = wvs ?? wavesRef.current;
+    const data = base ? mergeIntoButterchurnPreset(combined, base, waveArr) : toButterchurnPreset(combined, waveArr);
     onLivePreviewChange(data);
   }, [onLivePreviewChange, combineEquations]);
 
-  // Build butterchurn preset for save/export — bakes auto-equations in
-  const buildBcPreset = useCallback((params: Record<string, unknown>, base: object | null): object => {
-    const combined = combineEquations(params, modulationsRef.current);
-    return base ? mergeIntoButterchurnPreset(combined, base) : toButterchurnPreset(combined);
-  }, [combineEquations]);
+  // Build butterchurn preset for save/export.
+  // Bakes animation (auto) equations into frame_eqs_str but NOT slider overrides —
+  // those are already reflected in baseVals so baking them would cause conflicts on re-import.
+  const buildBcPreset = useCallback((params: Record<string, unknown>, base: object | null, wvs?: WaveState[]): object => {
+    const autoEqs = buildAutoEquations(modulationsRef.current, params, ANIM_PARAM_CONFIGS);
+    const userEqs = String(params.per_frame_eqs_str ?? '');
+    const frameEqs = [userEqs, autoEqs].filter(Boolean).join('\n');
+    const exportParams = { ...params, per_frame_eqs_str: frameEqs };
+    const waveArr = wvs ?? wavesRef.current;
+    return base ? mergeIntoButterchurnPreset(exportParams, base, waveArr) : toButterchurnPreset(exportParams, waveArr);
+  }, []);
 
   // Apply a new flat preset (replaces entire state) and push to renderer
   const applyPreset = useCallback((updated: Record<string, unknown>, base: object | null = baseBcPresetRef.current) => {
     presetRef.current = updated;
     setPreset(updated);
+    setBaseValsText(serializeBaseVals(updated));
     pushToRenderer(updated, base);
   }, [pushToRenderer]);
 
-  // Update a single parameter and push. Auto-equations are combined in pushToRenderer,
-  // so no special handling is needed for animated params here.
+  // Update a single non-code parameter. Syncs the Base Values textarea.
   const setParam = useCallback((key: string, value: unknown) => {
     setIsDirty(true);
     const updated = { ...presetRef.current, [key]: value };
     presetRef.current = updated;
     setPreset(updated);
+    setBaseValsText(serializeBaseVals(updated));
     pushToRenderer(updated, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
-  // Update one modulation entry and push — no preset state change needed
+  // Handle code textarea changes (init, per-frame, per-vertex, warp, comp).
+  const handleCodeChange = useCallback((key: string, code: string) => {
+    setIsDirty(true);
+    const updated = { ...presetRef.current, [key]: code };
+    presetRef.current = updated;
+    setPreset(updated);
+    pushToRenderer(updated, baseBcPresetRef.current);
+  }, [pushToRenderer]);
+
+  // Handle Base Values textarea edits — parse and sync back to sliders.
+  const handleBaseValsChange = useCallback((text: string) => {
+    setIsDirty(true);
+    setBaseValsText(text);
+    const parsed = parseBaseVals(text);
+    const updated = { ...presetRef.current };
+    for (const [uiKey, numVal] of Object.entries(parsed)) {
+      const p = PARAM_BY_KEY[uiKey];
+      if (p && p.type !== 'code') {
+        const clamped = p.min !== undefined && p.max !== undefined
+          ? Math.max(p.min, Math.min(p.max, numVal))
+          : numVal;
+        updated[uiKey] = clamped;
+      }
+    }
+    presetRef.current = updated;
+    setPreset(updated);
+    pushToRenderer(updated, baseBcPresetRef.current);
+  }, [pushToRenderer]);
+
+  // Update one modulation entry.
   const setModulation = useCallback((key: string, mod: ParamModulation) => {
     const newMods = { ...modulationsRef.current, [key]: mod };
     modulationsRef.current = newMods;
@@ -262,28 +339,50 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     pushToRenderer(presetRef.current, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
+  // Handle changes to a specific wave in the Code tab.
+  const handleWaveChange = useCallback((index: number, wave: WaveState) => {
+    const newWaves = [...wavesRef.current];
+    newWaves[index] = wave;
+    wavesRef.current = newWaves;
+    setWaves(newWaves);
+    pushToRenderer(presetRef.current, baseBcPresetRef.current);
+  }, [pushToRenderer]);
+
   const handleLoadFromCurrent = () => {
     if (!activePresetData) return;
-    const flat = fromButterchurnPreset(activePresetData);
+    const { flat: rawFlat, waves: loadedWaves } = fromButterchurnPreset(activePresetData);
+    // Extract static literal assignments (e.g. `a.zoom = 1.01;`) from per_frame_eqs_str
+    // and promote them to slider values so sliders reflect the loaded preset correctly.
+    const { extracted, remaining } = extractStaticLiterals(
+      String(rawFlat.per_frame_eqs_str ?? ''), ANIM_PARAM_CONFIGS,
+    );
+    const flat = { ...rawFlat, ...extracted, per_frame_eqs_str: remaining };
     presetRef.current = flat;
     baseBcPresetRef.current = activePresetData;
+    wavesRef.current = loadedWaves;
     setPreset(flat);
     setBaseBcPreset(activePresetData);
+    setWaves(loadedWaves);
+    setBaseValsText(serializeBaseVals(flat));
     setIsDirty(false);
-    onLivePreviewChange(activePresetData);
+    pushToRenderer(flat, activePresetData, loadedWaves);
   };
 
   const handleResetAll = () => {
     const defaults = { ...DEFAULT_PRESET };
     const clearedMods = defaultModulationMap();
+    const resetWaves = defaultWaves();
     presetRef.current = defaults;
     baseBcPresetRef.current = null;
     modulationsRef.current = clearedMods;
+    wavesRef.current = resetWaves;
     setPreset(defaults);
     setBaseBcPreset(null);
     setModulations(clearedMods);
+    setWaves(resetWaves);
+    setBaseValsText(serializeBaseVals(defaults));
     setIsDirty(false);
-    pushToRenderer(defaults, null);
+    pushToRenderer(defaults, null, resetWaves);
     setConfirmMode(null);
     setConfirmChecked(false);
   };
@@ -390,6 +489,21 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
       return;
     }
 
+    // Butterchurn native format (has baseVals key) — extract flat params + waves
+    if ('baseVals' in parsed) {
+      const { flat: rawFlat, waves: loadedWaves } = fromButterchurnPreset(parsed as object);
+      const { extracted, remaining } = extractStaticLiterals(
+        String(rawFlat.per_frame_eqs_str ?? ''), ANIM_PARAM_CONFIGS,
+      );
+      const flat = { ...rawFlat, ...extracted, per_frame_eqs_str: remaining };
+      wavesRef.current = loadedWaves;
+      setWaves(loadedWaves);
+      setShowImport(false);
+      setImportText('');
+      applyPreset(flat);
+      return;
+    }
+
     let updatedPreset: Record<string, unknown>;
     if (importReplace) {
       updatedPreset = { ...DEFAULT_PRESET, ...parsed };
@@ -399,7 +513,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
         if (PARAM_BY_KEY[key]) updates[key] = parsed[key];
       }
       if (Object.keys(updates).length === 0) {
-        setImportError('No recognized preset parameters found. Check "Replace entirely" to import a full preset JSON.');
+        setImportError('No recognized preset parameters found. Check "Replace entirely" to import a full preset JSON, or paste a butterchurn JSON with a "baseVals" key.');
         return;
       }
       updatedPreset = { ...preset, ...updates };
@@ -602,23 +716,149 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
           </>
         )}
 
-        {subTab === 'code' && PARAMS_BY_GROUP.code.map(p => (
-          <div key={p.key} className="cfg-code-field">
-            <div className="cfg-code-label">
-              <span>{p.label}</span>
-              <button className="cfg-code-clear" onClick={() => setParam(p.key, '')} title="Clear">✕</button>
-            </div>
-            <p className="cfg-code-desc">{p.description}</p>
-            <textarea
-              className="cfg-code-editor"
-              value={getStr(preset, p.key)}
-              onChange={e => setParam(p.key, e.target.value)}
-              spellCheck={false}
-              placeholder="// e.g.: a.zoom = 1.0 + 0.1*a.bass_att;"
-              rows={5}
-            />
-          </div>
-        ))}
+        {subTab === 'code' && (() => {
+          const animCount = autoEqPreview ? autoEqPreview.split('\n').filter(Boolean).length : 0;
+          const eelFields = ['per_frame_init_eqs_str', 'per_frame_eqs_str', 'per_pixel_eqs_str'];
+          const showEelWarning = eelFields.some(k => hasEelSyntax(getStr(preset, k)));
+          return (
+            <>
+              {/* Base Values */}
+              <div className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>Base Values</span>
+                  <button
+                    className="cfg-code-clear"
+                    onClick={() => setBaseValsText(serializeBaseVals(presetRef.current))}
+                    title="Re-sync from current sliders"
+                  >↺</button>
+                </div>
+                <p className="cfg-code-desc">
+                  All slider parameters as butterchurn <code className="cfg-inline-code">baseVals</code> key=value pairs.
+                  Edit here to update sliders, or move sliders to update this.
+                  Slider values for motion/wave/color params are also injected as per-frame overrides,
+                  so they take effect even when a loaded preset has its own equations.
+                </p>
+                <textarea
+                  className="cfg-code-editor cfg-baseval-editor"
+                  value={baseValsText}
+                  onChange={e => handleBaseValsChange(e.target.value)}
+                  spellCheck={false}
+                  rows={14}
+                />
+              </div>
+
+              {/* EEL syntax warning */}
+              {showEelWarning && (
+                <div className="cfg-eel-warning">
+                  ⚠ Some equations appear to use native Milkdrop EEL syntax (bare variable names).
+                  Use <code className="cfg-inline-code">a.zoom</code>, <code className="cfg-inline-code">a.bass_att</code>, <code className="cfg-inline-code">Math.sin(a.time)</code> format for butterchurn compatibility.
+                  Paste a butterchurn-format preset JSON to auto-convert on import.
+                </div>
+              )}
+
+              {/* Init equations */}
+              <div className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>Init Equations</span>
+                  <button className="cfg-code-clear" onClick={() => handleCodeChange('per_frame_init_eqs_str', '')} title="Clear">✕</button>
+                </div>
+                <p className="cfg-code-desc">Runs once on preset load. Initialize q1–q32 and custom variables here.</p>
+                <textarea
+                  className="cfg-code-editor"
+                  value={getStr(preset, 'per_frame_init_eqs_str')}
+                  onChange={e => handleCodeChange('per_frame_init_eqs_str', e.target.value)}
+                  spellCheck={false}
+                  placeholder="q1 = 0; q2 = 0;"
+                  rows={3}
+                />
+              </div>
+
+              {/* Per-frame equations */}
+              <div className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>Per-Frame Equations</span>
+                  <button className="cfg-code-clear" onClick={() => handleCodeChange('per_frame_eqs_str', '')} title="Clear">✕</button>
+                </div>
+                <p className="cfg-code-desc">
+                  Runs every frame. Audio: <code className="cfg-inline-code">a.bass_att</code>, <code className="cfg-inline-code">a.mid_att</code>, <code className="cfg-inline-code">a.treb_att</code>. Time: <code className="cfg-inline-code">a.time</code>.
+                  {animCount > 0 && (
+                    <span className="cfg-code-anim-hint"> · {animCount} animation {animCount === 1 ? 'equation' : 'equations'} from Animate tab are prepended at runtime.</span>
+                  )}
+                </p>
+                <textarea
+                  className="cfg-code-editor"
+                  value={getStr(preset, 'per_frame_eqs_str')}
+                  onChange={e => handleCodeChange('per_frame_eqs_str', e.target.value)}
+                  spellCheck={false}
+                  placeholder="a.zoom = 1.0 + 0.1*a.bass_att;"
+                  rows={6}
+                />
+              </div>
+
+              {/* Per-vertex equations */}
+              <div className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>Per-Vertex Equations</span>
+                  <button className="cfg-code-clear" onClick={() => handleCodeChange('per_pixel_eqs_str', '')} title="Clear">✕</button>
+                </div>
+                <p className="cfg-code-desc">Runs per mesh vertex. Variables: x, y, rad, ang. Can override zoom, rot, warp, dx, dy per vertex.</p>
+                <textarea
+                  className="cfg-code-editor"
+                  value={getStr(preset, 'per_pixel_eqs_str')}
+                  onChange={e => handleCodeChange('per_pixel_eqs_str', e.target.value)}
+                  spellCheck={false}
+                  placeholder="a.zoom = 1.0 + 0.1*a.rad;"
+                  rows={4}
+                />
+              </div>
+
+              {/* Warp shader */}
+              <div className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>Warp Shader (GLSL)</span>
+                  <button className="cfg-code-clear" onClick={() => handleCodeChange('warp_str', '')} title="Clear">✕</button>
+                </div>
+                <p className="cfg-code-desc">Per-pixel shader for the warp pass. Inputs: uv, uv_orig (vec2), rad, ang. Blur textures via GetBlur1/2/3(uv). Output: ret (vec4).</p>
+                <textarea
+                  className="cfg-code-editor"
+                  value={getStr(preset, 'warp_str')}
+                  onChange={e => handleCodeChange('warp_str', e.target.value)}
+                  spellCheck={false}
+                  placeholder="ret = tex2D(sampler_fw_main, uv);"
+                  rows={5}
+                />
+              </div>
+
+              {/* Composite shader */}
+              <div className="cfg-code-field">
+                <div className="cfg-code-label">
+                  <span>Composite Shader (GLSL)</span>
+                  <button className="cfg-code-clear" onClick={() => handleCodeChange('comp_str', '')} title="Clear">✕</button>
+                </div>
+                <p className="cfg-code-desc">Per-pixel shader for the final pass. Inputs: uv (vec2), rad, ang, hue_shader (vec3). Output: ret (vec4).</p>
+                <textarea
+                  className="cfg-code-editor"
+                  value={getStr(preset, 'comp_str')}
+                  onChange={e => handleCodeChange('comp_str', e.target.value)}
+                  spellCheck={false}
+                  placeholder="ret = tex2D(sampler_fw_main, uv) * float4(hue_shader, 1);"
+                  rows={5}
+                />
+              </div>
+
+              {/* Custom Waves */}
+              <div className="cfg-code-waves-header">Custom Waves</div>
+              {waves.map((wave, i) => (
+                <WaveEditor
+                  key={i}
+                  index={i}
+                  wave={wave}
+                  onChange={(w) => handleWaveChange(i, w)}
+                />
+              ))}
+            </>
+          );
+        })()}
       </div>
 
       {/* AI Assist */}
