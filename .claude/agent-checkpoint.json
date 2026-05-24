@@ -2,6 +2,6 @@
   "issue_number": 15,
   "branch": "issue-15-song-progress-seek",
   "status": "in_progress",
-  "notes": "Starting implementation of issue #15: Skip to mid-song on 'now playing' menu. Plan: (1) add seekBuffer() to AudioEngine, (2) make NowPlayingHUD progress bar interactive with click/drag-to-seek + hover indicator, (3) wire onSeek callback in App.tsx, (4) update CSS.",
+  "notes": "Feature implemented and new tests green (3/3). Now running impacted existing test files (11-music-library, 07-hud-behavior, 02-audio-sources) to check for regressions. Then open PR.",
   "pr_url": null
 }

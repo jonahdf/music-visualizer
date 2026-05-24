@@ -344,11 +344,30 @@
 }
 
 .hud-progress-bar {
+  position: relative;
   width: 80px;
+  height: 14px; /* larger hit area */
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.hud-progress-bar--seekable {
+  cursor: pointer;
+}
+
+.hud-progress-track {
+  width: 100%;
   height: 3px;
   background: rgba(255, 255, 255, 0.12);
   border-radius: 2px;
   overflow: hidden;
+  transition: height 0.12s ease;
+}
+
+.hud-progress-bar--seekable:hover .hud-progress-track,
+.hud-progress-bar.dragging .hud-progress-track {
+  height: 5px;
 }
 
 .hud-progress-fill {
@@ -356,6 +375,25 @@
   background: #7c3aed;
   border-radius: 2px;
   transition: width 0.25s linear;
+}
+
+.hud-progress-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background: #7c3aed;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.hud-progress-bar--seekable:hover .hud-progress-thumb,
+.hud-progress-bar.dragging .hud-progress-thumb {
+  opacity: 1;
 }
 
 /* ── Music library (in drawer) ────────────────────────── */
