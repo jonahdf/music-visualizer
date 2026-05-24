@@ -1,4 +1,4 @@
-# Music Visualizer — Claude Context
+# ButterMilk Studio — Claude Context
 
 ## What this project is
 

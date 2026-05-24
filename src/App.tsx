@@ -497,7 +497,7 @@ export default function App() {
       {!initialized && (
         <div className="start-overlay" onClick={handleCanvasClick}>
           <div className="start-prompt">
-            <h1>Music Visualizer</h1>
+            <h1>ButterMilk Studio</h1>
             <p>Click anywhere to begin</p>
             <p className="start-hint">Connect an audio source via ☰ menu</p>
           </div>

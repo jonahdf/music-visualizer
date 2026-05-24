@@ -1,6 +1,6 @@
-# Music Visualizer
+# ButterMilk Studio
 
-A web-based music visualizer inspired by Milkdrop/ProjectM, running entirely in the browser.
+A web-based Milkdrop visualizer and preset studio, running entirely in the browser.
 
 ## Features
 
