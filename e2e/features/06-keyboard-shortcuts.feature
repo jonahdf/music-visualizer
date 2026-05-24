@@ -5,16 +5,26 @@ Feature: Keyboard shortcuts
   Background:
     Given the app is initialized
 
-  Scenario: Space opens the menu
-    When I press "Space"
+  Scenario: P key opens the menu
+    When I press "p"
     Then the menu should be open
 
-  Scenario: Space closes an open menu
+  Scenario: P key closes an open menu
     Given the menu is open
-    When I press "Space"
+    When I press "p"
     Then the menu should be closed
 
-  Scenario: Space does not close the menu when typing in the search box
+  Scenario: Escape closes an open menu
+    Given the menu is open
+    When I press "Escape"
+    Then the menu should be closed
+
+  Scenario: Space navigates to a random preset
+    Given a preset is active
+    When I press "Space"
+    Then the active preset should have changed
+
+  Scenario: Space does not navigate when typing in the search box
     Given the menu is open on the Presets tab
     When I focus the search input and press "Space"
     Then the menu should still be open
@@ -56,6 +66,22 @@ Feature: Keyboard shortcuts
     And audio is muted
     When I press "m"
     Then the HUD mute button should not be active
+
+  Scenario: 1 key sets quality to Low
+    When I press "1"
+    Then the quality pill should show "low"
+
+  Scenario: 2 key sets quality to Medium
+    When I press "2"
+    Then the quality pill should show "medium"
+
+  Scenario: 3 key sets quality to High
+    When I press "3"
+    Then the quality pill should show "high"
+
+  Scenario: 4 key sets quality to Ultra
+    When I press "4"
+    Then the quality pill should show "ultra"
 
   Scenario: Arrow keys do nothing before initialization
     Given the app is open but not yet initialized

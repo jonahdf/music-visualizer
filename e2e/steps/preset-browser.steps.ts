@@ -81,7 +81,7 @@ Then('the HUD preset name should match the preset I selected', async ({ appPage 
   // Name was stored in "I click the first preset in the list" step
   const selectedName: string = (appPage as any).__selectedPresetName ?? '';
   expect(selectedName.length, 'No preset name was stored — ensure "I click the first preset" ran first').toBeGreaterThan(0);
-  const hudName = await appPage.locator('.hud-preset-name').textContent();
+  const hudName = await appPage.locator('.bar-preset-name').textContent();
   expect(hudName?.trim()).toBe(selectedName);
 });
 

@@ -14,11 +14,11 @@ Then('the visualizer canvas should be present', async ({ appPage }) => {
 });
 
 Then('the HUD fps counter should not be visible', async ({ appPage }) => {
-  await expect(appPage.locator('.hud-fps')).not.toBeVisible();
+  await expect(appPage.locator('.bar-fps')).not.toBeVisible();
 });
 
 Then('the HUD fps counter should be visible', async ({ appPage }) => {
-  await expect(appPage.locator('.hud-fps')).toBeVisible();
+  await expect(appPage.locator('.bar-fps')).toBeVisible();
 });
 
 When('I click the start overlay', async ({ appPage }) => {
@@ -40,7 +40,7 @@ When('I click the visualizer canvas', async ({ appPage }) => {
 });
 
 When('I click the menu toggle button', async ({ appPage }) => {
-  await appPage.locator('.menu-toggle').click();
+  await appPage.locator('.bar-btn[title="Menu (P)"]').click();
 });
 
 Then('the start overlay should disappear', async ({ appPage }) => {
