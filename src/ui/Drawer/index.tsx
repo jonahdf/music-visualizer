@@ -231,6 +231,19 @@ export default function Drawer({
           />
         )}
       </div>
+
+      {tab !== 'create' && (
+        <div className="drawer-footer">
+          <a
+            className="github-issues-link"
+            href="https://github.com/jonahdf/music-visualizer/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Report a bug or request a feature
+          </a>
+        </div>
+      )}
     </div>
   );
 }
