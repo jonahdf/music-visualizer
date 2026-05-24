@@ -118,6 +118,46 @@ Vite transforms TS to JS at runtime. Any interface or type alias imported as a r
 
 ---
 
+## Test-driven development
+
+All bug fixes and new features must follow TDD. The test suite uses `playwright-bdd` — run it with `npm test`.
+
+### Fixing a bug
+
+1. **Write a failing scenario first.** Add a Gherkin scenario to the relevant `.feature` file (or create `e2e/features/NN-<topic>.feature`) that reproduces the bug. Run `npm test` and confirm it fails before touching any source code.
+2. **Fix the source code** until the new scenario passes.
+3. **Confirm nothing regressed** — the full suite must stay green.
+
+### Adding a new feature
+
+1. **Align on the spec in Gherkin first.** Write the `.feature` scenarios that describe the intended behavior before writing any implementation. This is the contract — agree on it before building.
+2. **Add step definitions** in the matching `e2e/steps/<topic>.steps.ts` file (reuse steps from `common.steps.ts` wherever possible).
+3. **Run `npm test`** — new scenarios should fail (red). This confirms the feature isn't already implemented and the steps are wired up correctly.
+4. **Implement the feature** until all new scenarios pass green.
+5. **Confirm nothing regressed** — the full suite must stay green.
+
+### Test file locations
+
+```
+e2e/
+  features/          # Gherkin .feature files — one file per feature area
+  steps/             # Step definitions — mirror the feature file names
+  support/
+    fixtures.ts      # appPage / firefoxPage fixtures + openApp / initializeApp / openMenu helpers
+    mocks.ts         # addInitScript strings for getUserMedia, getDisplayMedia, Firefox UA
+    common.steps.ts  # Shared Given/When/Then used across multiple features
+```
+
+### Key conventions
+
+- **Shared steps belong in `common.steps.ts`**, not duplicated across step files.
+- **New fixtures** (e.g., a page with a specific permission denied) go in `e2e/support/fixtures.ts`.
+- **CSS selectors** must match the actual class names in `src/`. Cross-check against `src/App.tsx` and `src/ui/*/index.tsx` before writing a locator.
+- **HUD interactions** require a `mouse.move(400, 300)` + `waitForFunction(() => !document.querySelector('.hud')?.classList.contains('hud-hidden'))` before clicking — the HUD auto-hides after 3 s of inactivity and sets `pointer-events: none`.
+- **`closeMenu()`** clicks `.close-btn` (the app has no Escape key handler).
+
+---
+
 ## Development notes
 
 - All CSS lives in `src/App.css` (component styles) and `src/index.css` (global reset)
