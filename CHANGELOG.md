@@ -4,7 +4,7 @@ All notable changes to ButterMilk Studio are documented here, newest first.
 
 ## 2026-05-24
 
-- **feat:** Changelog modal — "What's New" button in the bottom bar opens a chronological list of updates ([#27](https://github.com/jonahdf/music-visualizer/pull/27))
+- **feat:** Changelog modal — "What's New" button in the bottom bar opens a chronological list of updates ([#30](https://github.com/jonahdf/music-visualizer/pull/30))
 - **fix:** Responsive HUD — bottom bar and now-playing HUD stay outside the drawer area when the sidebar is open ([#26](https://github.com/jonahdf/music-visualizer/pull/26))
 - **feat:** GitHub issues link in the Settings drawer footer for reporting bugs and requesting features ([#23](https://github.com/jonahdf/music-visualizer/pull/23))
 - **fix:** Preset configurator slider ranges restricted to sensible Milkdrop values; wave opacity corrected from 0–255 to 0–1 ([#21](https://github.com/jonahdf/music-visualizer/pull/21))

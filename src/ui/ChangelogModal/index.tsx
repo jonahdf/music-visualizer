@@ -26,7 +26,7 @@ function parseChangelog(raw: string): ChangelogSection[] {
       if (!trimmed.startsWith('- ')) continue;
       const content = trimmed.slice(2);
 
-      const typeMatch = content.match(/^\*\*([^*]+)\*\*:\s*(.*)/);
+      const typeMatch = content.match(/^\*\*([^*:]+):\*\*\s*(.*)/s);
       if (!typeMatch) {
         entries.push({ type: '', text: content });
         continue;
