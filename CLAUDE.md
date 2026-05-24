@@ -155,6 +155,32 @@ e2e/
 - **CSS selectors** must match the actual class names in `src/`. Cross-check against `src/App.tsx` and `src/ui/*/index.tsx` before writing a locator.
 - **HUD interactions** require a `mouse.move(400, 300)` + `waitForFunction(() => !document.querySelector('.hud')?.classList.contains('hud-hidden'))` before clicking — the HUD auto-hides after 3 s of inactivity and sets `pointer-events: none`.
 - **`closeMenu()`** clicks `.close-btn` (the app has no Escape key handler).
+- **Bottom bar auto-hides** after 3 s of inactivity (`pointer-events: none` via `.bar-hidden`). Use `page.evaluate(() => (document.querySelector('.bar-changelog') as HTMLElement)?.click())` (JS `.click()` bypasses `pointer-events`) or move the mouse to reset the timer before clicking bar buttons.
+
+---
+
+## Changelog
+
+Every PR that introduces a user-facing change **must** update `CHANGELOG.md` at the repo root before merging. A CI job (`changelog-check.yml`) will fail the PR if `CHANGELOG.md` was not touched.
+
+### Format
+
+Add a new entry under today's date section (create the section if it does not exist yet):
+
+```
+## YYYY-MM-DD
+
+- **type:** Short description of the change ([#N](https://github.com/jonahdf/music-visualizer/pull/N))
+```
+
+Valid types: `feat`, `fix`, `refactor`, `perf`, `docs`, `chore`
+
+- Use `feat` for new user-visible features.
+- Use `fix` for bug fixes.
+- Use `refactor` for internal restructuring with no behavior change.
+- Use `chore` for CI, tooling, or dependency-only changes.
+
+Keep entries brief (one line). Newest date section goes at the top.
 
 ---
 

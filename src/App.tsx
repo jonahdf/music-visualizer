@@ -15,6 +15,7 @@ import BottomBar from './ui/BottomBar';
 import Drawer from './ui/Drawer';
 import type { DrawerTab } from './ui/Drawer';
 import KeyGuide from './ui/KeyGuide';
+import ChangelogModal from './ui/ChangelogModal';
 import NowPlayingHUD from './ui/NowPlayingHUD';
 import { GRAPHICS_PRESETS } from './types';
 import { DEFAULT_PRESET } from './ui/PresetConfigurator/defaultPreset';
@@ -60,6 +61,7 @@ export default function App() {
   const [isResizingDrawer, setIsResizingDrawer] = useState(false);
   const [drawerTab, setDrawerTab] = useState<DrawerTab>('presets');
   const [keyGuideVisible, setKeyGuideVisible] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
   const [activeSource, setActiveSource] = useState<AudioSourceType | null>(null);
   const [quality, setQuality] = useState<QualityLevel>(readQuality);
   const [graphicsSettings, setGraphicsSettings] = useState<GraphicsSettings>(readGraphicsSettings);
@@ -560,11 +562,17 @@ export default function App() {
         onToggleHold={toggleHold}
         onOpenMenu={() => { initRenderer(); setDrawerOpen(open => !open); setDrawerTab('presets'); }}
         onToggleKeyGuide={() => setKeyGuideVisible(v => !v)}
+        onOpenChangelog={() => setChangelogOpen(true)}
       />
 
       <KeyGuide
         visible={keyGuideVisible}
         onClose={() => setKeyGuideVisible(false)}
+      />
+
+      <ChangelogModal
+        open={changelogOpen}
+        onClose={() => setChangelogOpen(false)}
       />
 
       <Drawer
