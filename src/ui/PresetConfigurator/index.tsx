@@ -266,7 +266,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   //   3. animation equations       (highest priority — always win)
   // No comment markers — butterchurn's expression parser doesn't support them.
   const combineEquations = useCallback((params: Record<string, unknown>, mods: ModulationMap): Record<string, unknown> => {
-    const sliderOverrides = buildSliderOverrides(params, mods, ANIM_PARAM_CONFIGS);
+    const sliderOverrides = buildSliderOverrides(params, mods, ANIM_PARAM_CONFIGS, String(params.per_frame_eqs_str ?? ''));
     const userEqs = String(params.per_frame_eqs_str ?? '');
     const autoEqs = buildAutoEquations(mods, params, ANIM_PARAM_CONFIGS);
     const parts = [sliderOverrides, userEqs, autoEqs].filter(Boolean);

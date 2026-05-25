@@ -60,17 +60,21 @@ export function buildSliderOverrides(
   params: Record<string, unknown>,
   mods: ModulationMap,
   configs: AnimParamConfig[],
+  userEqStr = '',
 ): string {
   const lines: string[] = [];
   for (const cfg of configs) {
     const mod = mods[cfg.key];
     if (mod && (mod.audioBand !== 'none' || mod.oscAmp !== 0)) continue;
+    const varName = PER_FRAME_KEY[cfg.key] ?? cfg.key;
+    // Skip override when user equations already reference this variable —
+    // those equations may be accumulators that rely on prior-frame state.
+    if (userEqStr && new RegExp(`\\ba\\.${varName}\\b`).test(userEqStr)) continue;
     const v = params[cfg.key];
     const numVal = typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v) : NaN;
     if (isNaN(numVal)) continue;
     const param = PARAM_BY_KEY[cfg.key];
     if (!param) continue;
-    const varName = PER_FRAME_KEY[cfg.key] ?? cfg.key;
     lines.push(`a.${varName} = ${fmtVal(numVal, param)};`);
   }
   return lines.join('\n');
