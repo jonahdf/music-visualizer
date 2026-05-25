@@ -1,0 +1,7 @@
+{
+  "issue_number": 25,
+  "branch": "issue-25-update-ai-preset-instructions",
+  "status": "in_progress",
+  "notes": "Starting implementation of issue #25: AI instructions for preset generation are out of date. Plan: (1) write failing scenario checking the AI prompt contains advanced examples and butterchurn/milkdrop differences, (2) update aiPromptBuilder.ts with comprehensive guide including martin/geiss-style pattern examples, butterchurn JS vs EEL syntax differences, advanced variable docs, and GLSL shader section.",
+  "pr_url": null
+}
