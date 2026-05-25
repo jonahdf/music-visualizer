@@ -7,6 +7,10 @@ All notable changes to ButterMilk Studio are documented here, newest first.
 - **fix:** Create mode — slider overrides no longer reset per-frame accumulator variables (e.g. wave_r) driven by user equations, eliminating visual mismatch on preset load ([#11](https://github.com/jonahdf/music-visualizer/pull/11))
 - **fix:** ButterchurnRenderer — loadPreset errors now logged to console.error instead of silently swallowed ([#11](https://github.com/jonahdf/music-visualizer/pull/11))
 
+## 2026-05-25
+
+- **feat:** Preset configurator — Baseline button strips preset to bare static waveform; default animations (zoom/warp) now visible and editable in the Animate tab; animations on/off toggle added ([#31](https://github.com/jonahdf/music-visualizer/pull/31))
+
 ## 2026-05-24
 
 - **feat:** Changelog modal — "What's New" button in the bottom bar opens a chronological list of updates ([#30](https://github.com/jonahdf/music-visualizer/pull/30))

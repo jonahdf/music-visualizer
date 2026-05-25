@@ -655,11 +655,47 @@
   gap: 4px;
 }
 
+.cfg-anim-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
 .cfg-anim-intro {
   font-size: 0.68rem;
   color: rgba(255, 255, 255, 0.4);
-  margin: 0 0 8px;
+  margin: 0;
   line-height: 1.5;
+  flex: 1;
+}
+
+.cfg-anim-toggle {
+  flex-shrink: 0;
+  padding: 4px 9px;
+  font-size: 0.66rem;
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  border-radius: 5px;
+  color: rgba(167, 139, 250, 0.9);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.cfg-anim-toggle:hover {
+  background: rgba(124, 58, 237, 0.28);
+  border-color: rgba(124, 58, 237, 0.6);
+}
+.cfg-anim-toggle.off {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.35);
+}
+.cfg-anim-toggle.off:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .cfg-anim-row {

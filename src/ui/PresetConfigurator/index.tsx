@@ -2,12 +2,12 @@ import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { PARAMS_BY_GROUP, PARAM_BY_KEY } from './parameterDefs';
 import type { ParamDef, ParamGroup } from './parameterDefs';
-import { DEFAULT_PRESET } from './defaultPreset';
+import { DEFAULT_PRESET, BASELINE_PRESET } from './defaultPreset';
 import { toButterchurnPreset, mergeIntoButterchurnPreset, fromButterchurnPreset } from './presetConvert';
 import { buildAIPrompt } from './aiPromptBuilder';
 import AnimationPanel from './AnimationPanel';
 import type { ModulationMap, ParamModulation } from './animationTypes';
-import { ANIM_PARAM_CONFIGS, defaultModulationMap } from './animationTypes';
+import { ANIM_PARAM_CONFIGS, defaultModulationMap, defaultPresetModulations } from './animationTypes';
 import { buildAutoEquations } from './generateAnimEquations';
 import { serializeBaseVals, parseBaseVals, hasEelSyntax, buildSliderOverrides, extractStaticLiterals } from './generateSliderCode';
 import type { WaveState } from './waveTypes';
@@ -224,7 +224,8 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const [isDirty, setIsDirty] = useState(false);
   const [presetName, setPresetName] = useState('My Custom Preset');
   const [subTab, setSubTab] = useState<SubTabId>('motion');
-  const [modulations, setModulations] = useState<ModulationMap>(defaultModulationMap);
+  const [modulations, setModulations] = useState<ModulationMap>(defaultPresetModulations);
+  const [animationsEnabled, setAnimationsEnabled] = useState(true);
   const [waves, setWaves] = useState<WaveState[]>(defaultWaves);
   const [baseValsText, setBaseValsText] = useState<string>(() => serializeBaseVals(DEFAULT_PRESET));
   const [copied, setCopied] = useState(false);
@@ -256,7 +257,8 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   // Refs give synchronous read access without nesting state setters.
   // Updated immediately before every matching setPreset / setModulations call.
   const presetRef = useRef<Record<string, unknown>>({ ...DEFAULT_PRESET });
-  const modulationsRef = useRef<ModulationMap>(modulations);
+  const modulationsRef = useRef<ModulationMap>(defaultPresetModulations());
+  const animationsEnabledRef = useRef(true);
   const baseBcPresetRef = useRef<object | null>(null);
   const wavesRef = useRef<WaveState[]>(defaultWaves());
 
@@ -264,12 +266,12 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   //   1. slider overrides          (static a.var = X; for non-animated params — lowest priority,
   //                                 skipped if the user equation already references that variable)
   //   2. user's per_frame_eqs_str  (user code overrides slider defaults)
-  //   3. animation equations       (highest priority — always win)
+  //   3. animation equations       (highest priority — always win, skipped when animations disabled)
   // No comment markers — butterchurn's expression parser doesn't support them.
   const combineEquations = useCallback((params: Record<string, unknown>, mods: ModulationMap): Record<string, unknown> => {
     const userEqs = String(params.per_frame_eqs_str ?? '');
     const sliderOverrides = buildSliderOverrides(params, mods, ANIM_PARAM_CONFIGS, userEqs);
-    const autoEqs = buildAutoEquations(mods, params, ANIM_PARAM_CONFIGS);
+    const autoEqs = animationsEnabledRef.current ? buildAutoEquations(mods, params, ANIM_PARAM_CONFIGS) : '';
     const parts = [sliderOverrides, userEqs, autoEqs].filter(Boolean);
     return { ...params, per_frame_eqs_str: parts.join('\n') };
   }, []);
@@ -357,6 +359,13 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
     pushToRenderer(presetRef.current, baseBcPresetRef.current);
   }, [pushToRenderer]);
 
+  const handleToggleAnimations = useCallback(() => {
+    const next = !animationsEnabledRef.current;
+    animationsEnabledRef.current = next;
+    setAnimationsEnabled(next);
+    pushToRenderer(presetRef.current, baseBcPresetRef.current);
+  }, [pushToRenderer]);
+
   // Handle changes to a specific wave in the Code tab.
   const handleWaveChange = useCallback((index: number, wave: WaveState) => {
     const newWaves = [...wavesRef.current];
@@ -388,21 +397,42 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
 
   const handleResetAll = () => {
     const defaults = { ...DEFAULT_PRESET };
-    const clearedMods = defaultModulationMap();
+    const resetMods = defaultPresetModulations();
     const resetWaves = defaultWaves();
     presetRef.current = defaults;
     baseBcPresetRef.current = null;
-    modulationsRef.current = clearedMods;
+    modulationsRef.current = resetMods;
+    animationsEnabledRef.current = true;
     wavesRef.current = resetWaves;
     setPreset(defaults);
     setBaseBcPreset(null);
-    setModulations(clearedMods);
+    setModulations(resetMods);
+    setAnimationsEnabled(true);
     setWaves(resetWaves);
     setBaseValsText(serializeBaseVals(defaults));
     setIsDirty(false);
     pushToRenderer(defaults, null, resetWaves);
     setConfirmMode(null);
     setConfirmChecked(false);
+  };
+
+  const handleBaseline = () => {
+    const baseline = { ...BASELINE_PRESET };
+    const clearedMods = defaultModulationMap();
+    const resetWaves = defaultWaves();
+    presetRef.current = baseline;
+    baseBcPresetRef.current = null;
+    modulationsRef.current = clearedMods;
+    animationsEnabledRef.current = true;
+    wavesRef.current = resetWaves;
+    setPreset(baseline);
+    setBaseBcPreset(null);
+    setModulations(clearedMods);
+    setAnimationsEnabled(true);
+    setWaves(resetWaves);
+    setBaseValsText(serializeBaseVals(baseline));
+    setIsDirty(false);
+    pushToRenderer(baseline, null, resetWaves);
   };
 
   // Live preview of auto-equations shown in the Animate tab (no comment markers)
@@ -580,8 +610,15 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
           <>
             <button
               className="cfg-btn"
+              onClick={handleBaseline}
+              title="Strip everything to a bare static waveform — no animations, no effects"
+            >
+              Baseline
+            </button>
+            <button
+              className="cfg-btn"
               onClick={() => setConfirmMode('reset')}
-              title="Reset all parameters to defaults"
+              title="Reset all parameters to animated defaults"
             >
               Reset All
             </button>
@@ -664,8 +701,10 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
           <AnimationPanel
             modulations={modulations}
             generatedCode={autoEqPreview}
+            animationsEnabled={animationsEnabled}
             onModulationChange={setModulation}
             onClearAll={handleClearAllAnimation}
+            onToggleAnimations={handleToggleAnimations}
           />
         )}
 
