@@ -52,6 +52,7 @@ export class AudioEngine {
   updateQuality(settings: QualitySettings) {
     if (!this.analyser) return;
     this.analyser.fftSize = settings.fftSize;
+    this.analyser.smoothingTimeConstant = settings.fftSmoothing;
     this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
     this.timeData = new Uint8Array(this.analyser.fftSize);
   }
