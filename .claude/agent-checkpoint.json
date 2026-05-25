@@ -1,7 +1,0 @@
-{
-  "issue_number": 11,
-  "branch": "issue-11-create-mode-slider-fix",
-  "status": "in_progress",
-  "notes": "Fixes implemented: buildSliderOverrides now skips variables in user equations, ButterchurnRenderer logs errors, window.__lastLivePreset added for test observability. Both new scenarios pass. Impacted feature tests pass. No type errors. Ready to commit and open PR.",
-  "pr_url": null
-}
