@@ -1,0 +1,7 @@
+{
+  "issue_number": 24,
+  "branch": "issue-24-remove-nonfunctional-visual-settings",
+  "status": "in_progress",
+  "notes": "Starting implementation of issue #24: Visual settings don't appear to do anything. Plan: (1) write failing scenario, (2) remove non-functional visual settings (waveform/reactivity/particles) from GraphicsPanel Visual subtab keeping only blend time, (3) remove unused fields from GraphicsSettings type and GRAPHICS_PRESETS, (4) fix fftSmoothing to be applied in AudioEngine.updateQuality.",
+  "pr_url": null
+}
