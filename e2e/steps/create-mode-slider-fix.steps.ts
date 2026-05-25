@@ -1,5 +1,18 @@
 import { When, Then, expect } from '../support/fixtures';
 
+// Butterchurn preset that uses a.q1 and a.frame — neither appears in the old narrow
+// early-exit list, so the EEL converter would previously double-convert them (a.q1 → a.a.q1).
+const Q_VARIABLE_PRESET_JSON = JSON.stringify({
+  baseVals: { zoom: 1.0, decay: 0.99, wave_mode: 0 },
+  waves: [],
+  shapes: [],
+  init_eqs_str: '',
+  frame_eqs_str: 'a.q1 = Math.sin(a.frame * 0.05);\na.wave_x = 0.5 + 0.3 * a.q1;',
+  pixel_eqs_str: '',
+  warp: '',
+  comp: '',
+});
+
 // Helper: find the cfg-param-row for a given label text (exact match)
 function paramRow(appPage: import('@playwright/test').Page, label: string) {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -30,6 +43,28 @@ When('I enter per-frame equations {string}', async ({ appPage }, text: string) =
   await textarea.waitFor({ state: 'visible' });
   await textarea.fill(text);
   await appPage.waitForTimeout(100);
+});
+
+When('I paste a butterchurn preset JSON with a.q1 frame equations into the import textarea',
+  async ({ appPage }) => {
+    const textarea = appPage.locator('.cfg-import-textarea');
+    await textarea.waitFor({ state: 'visible' });
+    await textarea.fill(Q_VARIABLE_PRESET_JSON);
+  }
+);
+
+Then('the per-frame equations should contain {string}', async ({ appPage }, text: string) => {
+  const textarea = appPage.locator('textarea[placeholder="a.zoom = 1.0 + 0.1*a.bass_att;"]');
+  await textarea.waitFor({ state: 'visible' });
+  const value = await textarea.inputValue();
+  expect(value).toContain(text);
+});
+
+Then('the per-frame equations should not contain {string}', async ({ appPage }, text: string) => {
+  const textarea = appPage.locator('textarea[placeholder="a.zoom = 1.0 + 0.1*a.bass_att;"]');
+  await textarea.waitFor({ state: 'visible' });
+  const value = await textarea.inputValue();
+  expect(value).not.toContain(text);
 });
 
 Then('the combined frame equations should not have a static {string} override',

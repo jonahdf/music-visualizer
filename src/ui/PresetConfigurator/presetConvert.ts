@@ -77,7 +77,10 @@ export function formatEquations(eqStr: string): string {
  */
 export function convertEelToButterchurnJs(eqStr: string): string {
   if (!eqStr.trim()) return eqStr;
-  if (/\ba\.(zoom|rot|bass_att|mid_att|treb_att|time|decay)\b/.test(eqStr)) return eqStr;
+  // Any a.prefix usage means the string is already butterchurn JS — skip conversion.
+  // The original narrow check only caught 7 keywords and missed a.q*, a.frame, a.wave_x, etc.,
+  // causing double-conversion (a.q1 → a.a.q1) for presets that don't use the 7 listed vars.
+  if (/\ba\.\w/.test(eqStr)) return eqStr;
 
   let out = eqStr;
   for (const [pattern, replacement] of EEL_MATH) {
