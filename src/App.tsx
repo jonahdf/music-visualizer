@@ -445,6 +445,8 @@ export default function App() {
   }, []);
 
   const handleLivePreviewChange = useCallback((data: object) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__lastLivePreset = data;
     rendererRef.current?.loadPreset(data, 0);
   }, []);
 

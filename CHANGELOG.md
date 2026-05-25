@@ -2,6 +2,10 @@
 
 All notable changes to ButterMilk Studio are documented here, newest first.
 
+## 2026-05-25
+
+- **fix:** Create mode — slider overrides no longer clobber per-frame accumulator equations; loadPreset errors are now logged to console ([#34](https://github.com/jonahdf/music-visualizer/pull/34))
+
 ## 2026-05-24
 
 - **feat:** Changelog modal — "What's New" button in the bottom bar opens a chronological list of updates ([#30](https://github.com/jonahdf/music-visualizer/pull/30))
