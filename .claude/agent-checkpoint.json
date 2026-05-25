@@ -1,0 +1,7 @@
+{
+  "issue_number": 27,
+  "branch": "issue-27-baseline-preset-animations",
+  "status": "in_progress",
+  "notes": "Implementing issue #27. Plan: (1) Add BASELINE_PRESET with no animations, (2) Move default zoom/warp animations from per_frame_eqs_str into modulation system so they show in Animate tab, (3) Add animations toggle in AnimationPanel, (4) Wire up in index.tsx. Files to change: defaultPreset.ts, animationTypes.ts, AnimationPanel.tsx, index.tsx, CHANGELOG.md. Tests: e2e/features/27-preset-baseline-animations.feature.",
+  "pr_url": null
+}
