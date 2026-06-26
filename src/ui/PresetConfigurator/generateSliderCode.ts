@@ -55,22 +55,27 @@ export function fmtVal(v: number, param: ParamDef): string {
  * Builds static `a.varName = value;` override lines for all animatable params
  * that are NOT currently animated. Injected BEFORE user equations so user code
  * can override slider defaults, while animations (appended last) always win.
+ *
+ * Skips any variable that already appears in `userEqStr` — preserves accumulator
+ * patterns like `a.wave_r = a.wave_r + ...` that read their own previous value.
  */
 export function buildSliderOverrides(
   params: Record<string, unknown>,
   mods: ModulationMap,
   configs: AnimParamConfig[],
+  userEqStr = '',
 ): string {
   const lines: string[] = [];
   for (const cfg of configs) {
     const mod = mods[cfg.key];
     if (mod && (mod.audioBand !== 'none' || mod.oscAmp !== 0)) continue;
+    const varName = PER_FRAME_KEY[cfg.key] ?? cfg.key;
+    if (userEqStr && new RegExp(`\\ba\\.${varName}\\b`).test(userEqStr)) continue;
     const v = params[cfg.key];
     const numVal = typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v) : NaN;
     if (isNaN(numVal)) continue;
     const param = PARAM_BY_KEY[cfg.key];
     if (!param) continue;
-    const varName = PER_FRAME_KEY[cfg.key] ?? cfg.key;
     lines.push(`a.${varName} = ${fmtVal(numVal, param)};`);
   }
   return lines.join('\n');

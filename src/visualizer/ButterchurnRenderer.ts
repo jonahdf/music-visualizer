@@ -32,9 +32,10 @@ export class ButterchurnRenderer {
     if (!this.visualizer) return;
     try {
       this.visualizer.loadPreset(preset, blendSeconds);
-    } catch {
+    } catch (err) {
       // Malformed per-frame equations or other preset parse errors must not
-      // propagate into React's state update machinery.
+      // propagate into React's state update machinery, but should be visible in devtools.
+      console.error('[ButterchurnRenderer] loadPreset failed:', err);
     }
   }
 

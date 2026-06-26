@@ -261,13 +261,14 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   const wavesRef = useRef<WaveState[]>(defaultWaves());
 
   // Combine per-frame equations in priority order (later lines win):
-  //   1. slider overrides          (static a.var = X; for non-animated params — lowest priority)
+  //   1. slider overrides          (static a.var = X; for non-animated params — lowest priority,
+  //                                 skipped if the user equation already references that variable)
   //   2. user's per_frame_eqs_str  (user code overrides slider defaults)
   //   3. animation equations       (highest priority — always win)
   // No comment markers — butterchurn's expression parser doesn't support them.
   const combineEquations = useCallback((params: Record<string, unknown>, mods: ModulationMap): Record<string, unknown> => {
-    const sliderOverrides = buildSliderOverrides(params, mods, ANIM_PARAM_CONFIGS);
     const userEqs = String(params.per_frame_eqs_str ?? '');
+    const sliderOverrides = buildSliderOverrides(params, mods, ANIM_PARAM_CONFIGS, userEqs);
     const autoEqs = buildAutoEquations(mods, params, ANIM_PARAM_CONFIGS);
     const parts = [sliderOverrides, userEqs, autoEqs].filter(Boolean);
     return { ...params, per_frame_eqs_str: parts.join('\n') };
@@ -276,6 +277,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   // Helper: push a flat preset to the renderer (side-effect, never call inside an updater)
   const pushToRenderer = useCallback((params: Record<string, unknown>, base: object | null, wvs?: WaveState[]) => {
     const combined = combineEquations(params, modulationsRef.current);
+    (window as any).__bcLastCombinedPerFrameEqs = String((combined as any).per_frame_eqs_str ?? '');
     const waveArr = wvs ?? wavesRef.current;
     const data = base ? mergeIntoButterchurnPreset(combined, base, waveArr) : toButterchurnPreset(combined, waveArr);
     onLivePreviewChange(data);
