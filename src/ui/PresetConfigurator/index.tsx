@@ -277,9 +277,7 @@ export default function PresetConfigurator({ activePresetData, onLivePreviewChan
   // Helper: push a flat preset to the renderer (side-effect, never call inside an updater)
   const pushToRenderer = useCallback((params: Record<string, unknown>, base: object | null, wvs?: WaveState[]) => {
     const combined = combineEquations(params, modulationsRef.current);
-    if (import.meta.env.DEV) {
-      (window as any).__bcLastCombinedPerFrameEqs = String((combined as any).per_frame_eqs_str ?? '');
-    }
+    (window as any).__bcLastCombinedPerFrameEqs = String((combined as any).per_frame_eqs_str ?? '');
     const waveArr = wvs ?? wavesRef.current;
     const data = base ? mergeIntoButterchurnPreset(combined, base, waveArr) : toButterchurnPreset(combined, waveArr);
     onLivePreviewChange(data);
