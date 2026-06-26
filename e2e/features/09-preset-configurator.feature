@@ -30,3 +30,19 @@ Feature: Preset configurator
     And I click the "Trail Length (Decay)" param value
     And I type "0.001" into the param value input and confirm
     Then the "Trail Length (Decay)" displayed value should be "0.001"
+
+  Scenario: Slider overrides do not clobber user per-frame equations that use the same variable
+    When I open the drawer on the Presets tab
+    And I type "Contortion" in the search box
+    And I click the first preset in the list
+    And I switch to the Create tab
+    And I click Load Current
+    Then the combined per-frame equations should not contain static overrides for variables already in user equations
+
+  Scenario: Create mode slider changes remain effective after loading a bundled preset
+    When I open the drawer on the Presets tab
+    And I select a preset that has equations
+    And I switch to the Create tab
+    And I click Load Current
+    And I set the "Zoom" slider to its minimum value
+    Then the "Zoom" displayed value should be "0.900"

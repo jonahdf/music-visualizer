@@ -75,6 +75,47 @@ Then('the {string} displayed value should be {string}', async ({ appPage }, labe
   expect(text?.trim()).toBe(expectedValue);
 });
 
+When('I set the {string} slider to its minimum value', async ({ appPage }, label: string) => {
+  const slider = paramRow(appPage, label).locator('.cfg-slider');
+  await slider.waitFor({ state: 'visible' });
+  const min = await slider.getAttribute('min');
+  // Use the native value setter + input event to trigger React's onChange
+  await slider.evaluate((el: HTMLInputElement, v: string) => {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    if (setter) setter.call(el, v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, min ?? '0');
+  await appPage.waitForTimeout(100);
+});
+
+Then('the combined per-frame equations should not contain static overrides for variables already in user equations', async ({ appPage }) => {
+  // Wait for Load Current to push combined equations to the renderer (window hook set in DEV build)
+  await appPage.waitForFunction(() => (window as any).__bcLastCombinedPerFrameEqs !== undefined);
+  const eqs: string = await appPage.evaluate(() => (window as any).__bcLastCombinedPerFrameEqs ?? '');
+
+  // Find variables that appear in user equations (dynamic patterns like a.wave_r = a.wave_r + ...)
+  const varPattern = /a\.(\w+)\s*=\s*a\.\1/g;
+  const accumVars: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = varPattern.exec(eqs)) !== null) {
+    accumVars.push(match[1]);
+  }
+
+  // For each accumulator variable, verify there is no static override line (a.varName = <number>;)
+  // appearing before the accumulator equation in the combined output
+  for (const varName of accumVars) {
+    const staticOverride = new RegExp(`a\\.${varName}\\s*=\\s*[\\d.]+\\s*;`);
+    const accumulatorEq = new RegExp(`a\\.${varName}\\s*=\\s*a\\.${varName}`);
+    const staticMatch = staticOverride.exec(eqs);
+    const accumMatch = accumulatorEq.exec(eqs);
+    if (staticMatch && accumMatch) {
+      // Static override must NOT appear before the accumulator equation
+      const msg = `Static override for a.${varName} (pos ${staticMatch.index}) appears before accumulator equation (pos ${accumMatch.index}) in combined per-frame equations`;
+      expect(staticMatch.index, msg).toBeGreaterThan(accumMatch.index);
+    }
+  }
+});
+
 Then('the per-frame equations textarea should have line breaks after each semicolon', async ({ appPage }) => {
   // Per-Frame Equations textarea has placeholder "a.zoom = 1.0 + 0.1*a.bass_att;"
   const textarea = appPage.locator('textarea[placeholder="a.zoom = 1.0 + 0.1*a.bass_att;"]');
