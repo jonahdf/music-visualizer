@@ -1,7 +1,0 @@
-{
-  "issue_number": 11,
-  "branch": "issue-11-fix-create-mode-slider-override",
-  "status": "in_progress",
-  "notes": "Tests passing. Fixes: (1) buildSliderOverrides skips variables in user equations, (2) ButterchurnRenderer.loadPreset logs errors. TypeScript clean. Running impacted feature tests next.",
-  "pr_url": null
-}
