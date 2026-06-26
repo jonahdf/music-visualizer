@@ -44,14 +44,10 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        launchOptions: {
-          executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-          args: [
-            '--autoplay-policy=no-user-gesture-required',
-            '--use-gl=swiftshader',
-            '--disable-gpu-sandbox',
-          ],
-        },
+        // In CI, Playwright installs its own browser — no override needed.
+        // Locally, /opt/pw-browsers/chromium points to the pre-installed build
+        // (symlink to chromium-1194) because the package-pinned version may differ.
+        ...(!process.env.CI && { launchOptions: { executablePath: '/opt/pw-browsers/chromium' } }),
       },
     },
   ],
