@@ -1,0 +1,7 @@
+{
+  "issue_number": 11,
+  "branch": "issue-11-fix-create-mode-slider-override",
+  "status": "in_progress",
+  "notes": "Starting implementation of issue #11: Create mode: preset visual mismatch + slider changes have no effect. Fixes: (1) buildSliderOverrides resets stateful/cumulative variables every frame, (2) silent error swallowing in ButterchurnRenderer.loadPreset",
+  "pr_url": null
+}
