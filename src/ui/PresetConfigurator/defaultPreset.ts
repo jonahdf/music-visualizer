@@ -1,12 +1,13 @@
-export const DEFAULT_PRESET: Record<string, unknown> = {
-  // Motion
+// Absolute minimum preset — no animations, no effects, pure static waveform.
+// Used by the "Baseline" button in the preset configurator.
+export const BASELINE_PRESET: Record<string, unknown> = {
   zoom: 1.0,
   rot: 0.0,
   cx: 0.5,
   cy: 0.5,
   dx: 0.0,
   dy: 0.0,
-  warp: 1.0,
+  warp: 0.0,
   sx: 1.0,
   sy: 1.0,
   fZoomExponent: 1.0,
@@ -14,8 +15,6 @@ export const DEFAULT_PRESET: Record<string, unknown> = {
   fWarpAnimSpeed: 1.0,
   fDecay: 0.98,
   fShader: 0.0,
-
-  // Wave
   nWaveMode: 0,
   fWaveAlpha: 0.5,
   fWaveScale: 1.0,
@@ -31,8 +30,6 @@ export const DEFAULT_PRESET: Record<string, unknown> = {
   bAdditiveWaves: 0,
   bModWaveAlphaByVolume: 0,
   bMaximizeWaveColor: 0,
-
-  // Color/FX
   fGammaAdj: 1.0,
   fVideoEchoZoom: 1.0,
   fVideoEchoAlpha: 0.0,
@@ -44,8 +41,6 @@ export const DEFAULT_PRESET: Record<string, unknown> = {
   bDarken: 0,
   bSolarize: 0,
   bInvert: 0,
-
-  // Borders
   ob_size: 0.0,
   ob_r: 0.0,
   ob_g: 0.0,
@@ -56,11 +51,18 @@ export const DEFAULT_PRESET: Record<string, unknown> = {
   ib_g: 0.0,
   ib_b: 0.0,
   ib_a: 0.0,
-
-  // Code
   per_frame_init_eqs_str: '',
-  per_frame_eqs_str: 'a.zoom = 1.005 + 0.02*a.bass_att;\na.warp = 0.5 + 0.3*a.mid_att;',
+  per_frame_eqs_str: '',
   per_pixel_eqs_str: '',
   warp_str: '',
   comp_str: '',
+};
+
+// Default starting preset for new presets in the Create tab.
+// zoom/warp base values match the default modulations in animationTypes.ts;
+// those modulations drive the animation via the Animate tab rather than hard-coded equations.
+export const DEFAULT_PRESET: Record<string, unknown> = {
+  ...BASELINE_PRESET,
+  zoom: 1.005,
+  warp: 0.5,
 };

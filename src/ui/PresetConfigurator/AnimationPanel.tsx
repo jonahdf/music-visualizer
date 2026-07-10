@@ -113,15 +113,19 @@ function AnimParamRow({ config, mod, onChange }: AnimParamRowProps) {
 interface AnimationPanelProps {
   modulations: ModulationMap;
   generatedCode: string;
+  animationsEnabled: boolean;
   onModulationChange: (key: string, mod: ParamModulation) => void;
   onClearAll: () => void;
+  onToggleAnimations: () => void;
 }
 
 export default function AnimationPanel({
   modulations,
   generatedCode,
+  animationsEnabled,
   onModulationChange,
   onClearAll,
+  onToggleAnimations,
 }: AnimationPanelProps) {
   const hasAny = ANIM_PARAM_CONFIGS.some(cfg => {
     const mod = modulations[cfg.key];
@@ -130,9 +134,18 @@ export default function AnimationPanel({
 
   return (
     <div className="cfg-anim-panel">
-      <p className="cfg-anim-intro">
-        Make parameters react to music or oscillate over time. The base value (set in Motion tab) is the center point.
-      </p>
+      <div className="cfg-anim-header">
+        <p className="cfg-anim-intro">
+          Make parameters react to music or oscillate over time. The base value (set in Motion tab) is the center point.
+        </p>
+        <button
+          className={`cfg-anim-toggle${animationsEnabled ? '' : ' off'}`}
+          onClick={onToggleAnimations}
+          title={animationsEnabled ? 'Click to disable all animations (settings are preserved)' : 'Click to re-enable animations'}
+        >
+          {animationsEnabled ? '⏵ Animations On' : '⏸ Animations Off'}
+        </button>
+      </div>
 
       {ANIM_PARAM_CONFIGS.map(cfg => (
         <AnimParamRow
